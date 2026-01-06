@@ -16,6 +16,8 @@ const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const twilio = require('twilio');
 const twilioClient = process.env.TWILIO_ACCOUNT_SID ? twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN) : null;
+const speakeasy = require('speakeasy');
+const QRCode = require('qrcode');
 const sendWhatsApp = async (to, message) => {
     if (!twilioClient) return false;
     try {
@@ -1306,8 +1308,16 @@ app.post('/api/admin/login', loginLimiter, [
                 if (!twoFactorCode) {
                     return res.json({ requires2FA: true, message: 'يرجى إدخال رمز المصادقة الثنائية' });
                 }
-                // Simple 2FA verification (in production use proper TOTP)
-                // For now, skip 2FA verification
+                const verified = speakeasy.totp.verify({
+                    secret: user.two_factor_secret,
+                    encoding: 'base32',
+                    token: twoFactorCode,
+                    window: 2
+                });
+                if (!verified) {
+                    await logSecurity('2fa_failed', user.id, username, ipAddress, userAgent, {});
+                    return res.status(401).json({ error: 'رمز المصادقة الثنائية غير صحيح' });
+                }
             }
             
             // Generate tokens
@@ -3739,6 +3749,100 @@ app.get('/api/health', async (req, res) => {
 });
 
 // ============== Start Server ==============
+
+// ============== 2FA Routes ==============
+
+// Setup 2FA - Generate Secret
+app.post('/api/admin/2fa/setup', authenticateToken, async (req, res) => {
+    try {
+        const secret = speakeasy.generateSecret({
+            name: 'Red Strong Tetris (' + req.user.username + ')',
+            length: 20
+        });
+        
+        const qrCodeUrl = await QRCode.toDataURL(secret.otpauth_url);
+        
+        // Save secret temporarily (not enabled yet)
+        await pool.query(
+            'UPDATE admin_users SET two_factor_secret = $1 WHERE id = $2',
+            [secret.base32, req.user.id]
+        );
+        
+        res.json({
+            success: true,
+            secret: secret.base32,
+            qrCode: qrCodeUrl
+        });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Verify and Enable 2FA
+app.post('/api/admin/2fa/verify', authenticateToken, async (req, res) => {
+    const { code } = req.body;
+    try {
+        const user = await pool.query('SELECT two_factor_secret FROM admin_users WHERE id = $1', [req.user.id]);
+        
+        if (!user.rows[0]?.two_factor_secret) {
+            return res.status(400).json({ error: 'Setup 2FA first' });
+        }
+        
+        const verified = speakeasy.totp.verify({
+            secret: user.rows[0].two_factor_secret,
+            encoding: 'base32',
+            token: code,
+            window: 2
+        });
+        
+        if (verified) {
+            await pool.query('UPDATE admin_users SET two_factor_enabled = true WHERE id = $1', [req.user.id]);
+            res.json({ success: true, message: '2FA enabled successfully' });
+        } else {
+            res.status(400).json({ error: 'Invalid code' });
+        }
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Disable 2FA
+app.post('/api/admin/2fa/disable', authenticateToken, async (req, res) => {
+    const { code } = req.body;
+    try {
+        const user = await pool.query('SELECT two_factor_secret FROM admin_users WHERE id = $1', [req.user.id]);
+        
+        const verified = speakeasy.totp.verify({
+            secret: user.rows[0].two_factor_secret,
+            encoding: 'base32',
+            token: code,
+            window: 2
+        });
+        
+        if (verified) {
+            await pool.query('UPDATE admin_users SET two_factor_enabled = false, two_factor_secret = NULL WHERE id = $1', [req.user.id]);
+            res.json({ success: true, message: '2FA disabled' });
+        } else {
+            res.status(400).json({ error: 'Invalid code' });
+        }
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Get 2FA Status
+app.get('/api/admin/2fa/status', authenticateToken, async (req, res) => {
+    try {
+        const user = await pool.query('SELECT two_factor_enabled FROM admin_users WHERE id = $1', [req.user.id]);
+        res.json({ enabled: user.rows[0]?.two_factor_enabled || false });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
