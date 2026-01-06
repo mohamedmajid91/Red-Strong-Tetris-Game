@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>تحقق من فوزك - Red Strong</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&family=Orbitron:wght@700;900&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --bg-dark: #0a0a1a;
+            --accent-red: #e31e24;
+            --accent-yellow: #ffd700;
+            --accent-green: #00d9a5;
+            --accent-blue: #3b82f6;
+            --glass: rgba(255,255,255,0.08);
+            --glass-border: rgba(255,255,255,0.12);
+        }
+        body { font-family: 'Cairo', sans-serif; min-height: 100vh; overflow-x: hidden; transition: all 0.5s; }
+        body.dark-mode { background: linear-gradient(135deg, #0a0a1a 0%, #1a1a3a 50%, #0d0d2a 100%); color: #fff; }
+        body.light-mode { background: linear-gradient(135deg, #e8f4fc 0%, #dbeafe 50%, #c7d2fe 100%); color: #1e293b; }
+        body.light-mode .card { background: rgba(255,255,255,0.9); border-color: rgba(0,0,0,0.08); }
+        body.light-mode .stats-card { background: rgba(255,255,255,0.8); }
+        body.light-mode .form-input { background: #fff; border-color: #e2e8f0; color: #334155; }
+        body.light-mode .text-muted { color: #64748b !important; }
+        .bg-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; overflow: hidden; }
+        .bg-orb { position: absolute; border-radius: 50%; filter: blur(100px); opacity: 0.5; animation: orbFloat 20s ease-in-out infinite; }
+        .bg-orb.red { width: 400px; height: 400px; background: var(--accent-red); top: -10%; right: -10%; }
+        .bg-orb.yellow { width: 350px; height: 350px; background: var(--accent-yellow); bottom: -15%; left: -10%; animation-delay: -7s; }
+        .bg-orb.blue { width: 300px; height: 300px; background: var(--accent-blue); top: 40%; left: 50%; animation-delay: -14s; }
+        body.light-mode .bg-orb { opacity: 0.3; }
+        @keyframes orbFloat { 0%, 100% { transform: translate(0, 0) scale(1); } 50% { transform: translate(30px, -30px) scale(1.1); } }
+        .particles { position: absolute; width: 100%; height: 100%; }
+        .particle { position: absolute; width: 4px; height: 4px; background: rgba(255,215,0,0.6); border-radius: 50%; animation: particleFloat 15s linear infinite; }
+        @keyframes particleFloat { 0% { transform: translateY(100vh); opacity: 0; } 10% { opacity: 1; } 90% { opacity: 1; } 100% { transform: translateY(-100vh); opacity: 0; } }
+        .container { position: relative; z-index: 10; min-height: 100vh; padding: 20px; display: flex; flex-direction: column; align-items: center; }
+        .header { width: 100%; max-width: 500px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; }
+        .logo-group { display: flex; align-items: center; gap: 12px; }
+        .logo-group img { height: 50px; filter: drop-shadow(0 5px 20px rgba(227,30,36,0.4)); animation: logoPulse 3s ease-in-out infinite; }
+        @keyframes logoPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
+        .logo-text { font-family: 'Orbitron', sans-serif; font-size: 1.4rem; font-weight: 900; background: linear-gradient(135deg, var(--accent-red), var(--accent-yellow)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .mode-btn { width: 48px; height: 48px; border-radius: 14px; background: var(--glass); border: 1px solid var(--glass-border); font-size: 1.4rem; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.3s; }
+        .mode-btn:hover { transform: scale(1.1); }
+        .card { width: 100%; max-width: 500px; background: var(--glass); backdrop-filter: blur(20px); border: 1px solid var(--glass-border); border-radius: 28px; padding: 30px; margin-bottom: 20px; }
+        .section-title { font-size: 1.1rem; font-weight: 700; margin-bottom: 15px; display: flex; align-items: center; gap: 8px; color: rgba(255,255,255,0.9); }
+        body.light-mode .section-title { color: #1e293b; }
+        .prize-card { background: linear-gradient(135deg, rgba(255,215,0,0.12), rgba(255,215,0,0.05)); border: 1px solid rgba(255,215,0,0.25); border-radius: 20px; padding: 20px; display: flex; align-items: center; gap: 18px; margin-bottom: 25px; position: relative; overflow: hidden; }
+        .prize-card::before { content: ''; position: absolute; top: 0; left: -100%; width: 100%; height: 100%; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent); animation: shimmer 3s infinite; }
+        @keyframes shimmer { 0% { left: -100%; } 100% { left: 100%; } }
+        .prize-image { width: 80px; height: 80px; border-radius: 16px; object-fit: cover; border: 2px solid rgba(255,215,0,0.3); background: rgba(0,0,0,0.2); }
+        .prize-info { flex: 1; }
+        .prize-badge { display: inline-flex; align-items: center; gap: 5px; background: linear-gradient(135deg, var(--accent-yellow), #f59e0b); color: #000; padding: 4px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 700; margin-bottom: 8px; }
+        .prize-name { font-size: 1.15rem; font-weight: 800; color: var(--accent-yellow); margin-bottom: 4px; }
+        .prize-desc { font-size: 0.85rem; color: rgba(255,255,255,0.6); }
+        body.light-mode .prize-desc { color: #64748b; }
+        .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 25px; }
+        .stats-card { background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); border-radius: 16px; padding: 15px 10px; text-align: center; transition: all 0.3s; }
+        .stats-card:hover { transform: translateY(-3px); border-color: var(--accent-yellow); }
+        .stats-icon { font-size: 1.5rem; margin-bottom: 5px; }
+        .stats-value { font-size: 1.4rem; font-weight: 900; background: linear-gradient(135deg, var(--accent-yellow), var(--accent-red)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .stats-label { font-size: 0.75rem; color: rgba(255,255,255,0.5); margin-top: 3px; }
+        body.light-mode .stats-label { color: #64748b; }
+        .progress-section { margin-bottom: 25px; }
+        .progress-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .progress-title { font-size: 0.9rem; color: rgba(255,255,255,0.7); }
+        body.light-mode .progress-title { color: #475569; }
+        .progress-value { font-size: 0.9rem; font-weight: 700; color: var(--accent-yellow); }
+        .progress-bar { height: 12px; background: rgba(255,255,255,0.1); border-radius: 10px; overflow: hidden; }
+        .progress-fill { height: 100%; background: linear-gradient(90deg, var(--accent-red), var(--accent-yellow)); border-radius: 10px; transition: width 1s ease; position: relative; }
+        .progress-fill::after { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent); animation: progressShine 2s infinite; }
+        @keyframes progressShine { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+        .countdown-section { background: linear-gradient(135deg, rgba(59,130,246,0.15), rgba(59,130,246,0.05)); border: 1px solid rgba(59,130,246,0.25); border-radius: 20px; padding: 20px; margin-bottom: 25px; text-align: center; }
+        .countdown-title { font-size: 0.9rem; color: rgba(255,255,255,0.7); margin-bottom: 12px; display: flex; align-items: center; justify-content: center; gap: 8px; }
+        body.light-mode .countdown-title { color: #475569; }
+        .countdown-timer { display: flex; justify-content: center; gap: 15px; }
+        .countdown-item { text-align: center; }
+        .countdown-value { width: 55px; height: 55px; background: linear-gradient(135deg, var(--accent-blue), #6366f1); border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; font-weight: 900; color: white; font-family: 'Orbitron', monospace; box-shadow: 0 5px 20px rgba(59,130,246,0.3); }
+        .countdown-label { font-size: 0.7rem; color: rgba(255,255,255,0.5); margin-top: 6px; }
+        body.light-mode .countdown-label { color: #64748b; }
+        .form-section { margin-bottom: 20px; }
+        .form-label { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; font-weight: 600; color: rgba(255,255,255,0.9); }
+        body.light-mode .form-label { color: #1e293b; }
+        .form-input { width: 100%; padding: 18px 20px; border: 2px solid var(--glass-border); border-radius: 16px; background: rgba(0,0,0,0.3); color: #fff; font-family: inherit; font-size: 1.3rem; text-align: center; letter-spacing: 4px; font-weight: 700; transition: all 0.3s; }
+        .form-input:focus { outline: none; border-color: var(--accent-red); box-shadow: 0 0 25px rgba(227,30,36,0.25); }
+        .btn { width: 100%; padding: 18px; border: none; border-radius: 16px; font-family: inherit; font-size: 1.1rem; font-weight: 700; cursor: pointer; transition: all 0.3s; display: flex; align-items: center; justify-content: center; gap: 10px; text-decoration: none; position: relative; overflow: hidden; }
+        .btn-primary { background: linear-gradient(135deg, var(--accent-red), #ff4757); color: white; box-shadow: 0 10px 40px rgba(227,30,36,0.35); }
+        .btn-primary:hover { transform: translateY(-3px); box-shadow: 0 15px 50px rgba(227,30,36,0.45); }
+        .btn-secondary { background: var(--glass); border: 1px solid var(--glass-border); color: #fff; margin-top: 12px; }
+        body.light-mode .btn-secondary { color: #334155; }
+        .btn-gold { background: linear-gradient(135deg, var(--accent-yellow), #f59e0b); color: #000; box-shadow: 0 10px 40px rgba(255,215,0,0.35); }
+        .btn-whatsapp { background: linear-gradient(135deg, #25d366, #128c7e); color: white; margin-top: 12px; }
+        .result-section { display: none; }
+        .result-section.active { display: block; animation: fadeIn 0.5s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        .winner-card { background: linear-gradient(135deg, rgba(255,215,0,0.2), rgba(255,215,0,0.08)); border: 2px solid var(--accent-yellow); border-radius: 24px; padding: 30px; text-align: center; margin: 25px 0; }
+        .winner-icon { font-size: 80px; animation: bounce 1s ease infinite; }
+        @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-15px); } }
+        .winner-title { font-size: 2rem; font-weight: 900; background: linear-gradient(135deg, var(--accent-yellow), #f59e0b); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin: 15px 0; }
+        .prize-code-box { background: linear-gradient(135deg, var(--accent-yellow), #b8860b); color: #000; padding: 20px 35px; border-radius: 16px; display: inline-block; margin: 15px 0; box-shadow: 0 10px 40px rgba(255,215,0,0.35); }
+        .prize-code-label { font-size: 0.85rem; opacity: 0.7; margin-bottom: 5px; }
+        .prize-code-value { font-family: 'Orbitron', monospace; font-size: 2.2rem; font-weight: 900; letter-spacing: 6px; }
+        .instructions { background: rgba(0,217,165,0.1); border: 1px solid var(--accent-green); border-radius: 18px; padding: 20px; text-align: right; margin-top: 20px; }
+        .instructions-title { color: var(--accent-green); font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+        .instructions-list { list-style: none; }
+        .instructions-list li { padding: 8px 0; color: rgba(255,255,255,0.75); display: flex; align-items: center; gap: 10px; font-size: 0.95rem; }
+        body.light-mode .instructions-list li { color: #475569; }
+        .instructions-list li span { width: 28px; height: 28px; background: var(--accent-green); color: #000; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 700; flex-shrink: 0; }
+        .not-winner-card { background: linear-gradient(135deg, rgba(227,30,36,0.12), rgba(227,30,36,0.05)); border: 1px solid rgba(227,30,36,0.3); border-radius: 20px; padding: 30px; text-align: center; margin: 25px 0; }
+        .not-winner-icon { font-size: 70px; margin-bottom: 15px; }
+        .not-winner-title { font-size: 1.6rem; font-weight: 800; margin-bottom: 10px; color: rgba(255,255,255,0.9); }
+        body.light-mode .not-winner-title { color: #1e293b; }
+        .not-winner-text { color: rgba(255,255,255,0.6); margin-bottom: 20px; }
+        body.light-mode .not-winner-text { color: #64748b; }
+        .loading-section { text-align: center; padding: 50px 20px; }
+        .loader { width: 70px; height: 70px; border: 4px solid var(--glass-border); border-top-color: var(--accent-red); border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 20px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .loading-text { color: rgba(255,255,255,0.7); font-size: 1.1rem; }
+        body.light-mode .loading-text { color: #475569; }
+        .back-link { display: inline-flex; align-items: center; gap: 8px; margin-top: 25px; color: rgba(255,255,255,0.5); text-decoration: none; font-size: 0.95rem; transition: all 0.3s; }
+        .back-link:hover { color: var(--accent-yellow); }
+        body.light-mode .back-link { color: #64748b; }
+        .confetti-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1000; overflow: hidden; }
+        .confetti-piece { position: absolute; width: 12px; height: 12px; animation: confetti 4s ease-out forwards; }
+        @keyframes confetti { 0% { transform: translateY(-100vh) rotate(0deg); opacity: 1; } 100% { transform: translateY(100vh) rotate(1080deg); opacity: 0; } }
+        .text-muted { color: rgba(255,255,255,0.5); }
+        .text-center { text-align: center; }
+        .mt-3 { margin-top: 15px; }
+    </style>
+</head>
+<body class="dark-mode">
+    <div class="bg-container">
+        <div class="bg-orb red"></div>
+        <div class="bg-orb yellow"></div>
+        <div class="bg-orb blue"></div>
+        <div class="particles" id="particles"></div>
+    </div>
+    <div class="confetti-container" id="confetti"></div>
+    <div class="container">
+        <header class="header">
+            <div class="logo-group">
+                <img src="/uploads/redstrong.png" alt="Logo" id="site-logo">
+                <span class="logo-text" id="site-name">RED STRONG</span>
+            </div>
+            <button class="mode-btn" onclick="toggleMode()" id="mode-btn">🌙</button>
+        </header>
+        <div class="card">
+            <div class="result-section active" id="check-section">
+                <div class="prize-card" id="prize-card" style="display:none;">
+                    <img src="" alt="Prize" class="prize-image" id="prize-image">
+                    <div class="prize-info">
+                        <div class="prize-badge">🎁 جائزة الأسبوع</div>
+                        <div class="prize-name" id="prize-name">-</div>
+                        <div class="prize-desc" id="prize-desc">العب وافوز!</div>
+                    </div>
+                </div>
+                <div class="section-title">📊 إحصائياتك</div>
+                <div class="stats-grid">
+                    <div class="stats-card"><div class="stats-icon">⭐</div><div class="stats-value" id="player-score">0</div><div class="stats-label">نقاطك</div></div>
+                    <div class="stats-card"><div class="stats-icon">🎮</div><div class="stats-value" id="player-games">0</div><div class="stats-label">ألعابك</div></div>
+                    <div class="stats-card"><div class="stats-icon">🏆</div><div class="stats-value" id="player-rank">-</div><div class="stats-label">ترتيبك</div></div>
+                </div>
+                <div class="progress-section">
+                    <div class="progress-header"><span class="progress-title">🎯 تقدمك نحو الفوز</span><span class="progress-value" id="progress-percent">0%</span></div>
+                    <div class="progress-bar"><div class="progress-fill" id="progress-fill" style="width: 0%"></div></div>
+                </div>
+                <div class="countdown-section">
+                    <div class="countdown-title"><span>⏰</span><span>السحب القادم خلال</span></div>
+                    <div class="countdown-timer">
+                        <div class="countdown-item"><div class="countdown-value" id="countdown-days">00</div><div class="countdown-label">يوم</div></div>
+                        <div class="countdown-item"><div class="countdown-value" id="countdown-hours">00</div><div class="countdown-label">ساعة</div></div>
+                        <div class="countdown-item"><div class="countdown-value" id="countdown-mins">00</div><div class="countdown-label">دقيقة</div></div>
+                        <div class="countdown-item"><div class="countdown-value" id="countdown-secs">00</div><div class="countdown-label">ثانية</div></div>
+                    </div>
+                </div>
+                <div class="form-section">
+                    <label class="form-label"><span>📱</span><span>رقم هاتفك المسجل</span></label>
+                    <input type="tel" class="form-input" id="phone" placeholder="07XX XXX XXXX" readonly>
+                </div>
+                <button class="btn btn-primary" onclick="checkWin()"><span>🔍</span><span>تحقق من فوزك الآن</span></button>
+                <a href="/game.html" class="back-link"><span>←</span><span>العودة للعبة</span></a>
+            </div>
+            <div class="result-section" id="loading-section">
+                <div class="loading-section"><div class="loader"></div><p class="loading-text">جاري التحقق من حالتك...</p></div>
+            </div>
+            <div class="result-section" id="winner-section">
+                <div class="winner-card">
+                    <div class="winner-icon">🏆</div>
+                    <h2 class="winner-title">مبروك! أنت فائز!</h2>
+                    <div class="prize-code-box"><div class="prize-code-label">كود الجائزة</div><div class="prize-code-value" id="winner-code">XXXX-XXXX</div></div>
+                    <p class="text-muted">📸 احتفظ بصورة من هذا الكود</p>
+                </div>
+                <div class="instructions">
+                    <div class="instructions-title"><span>📝</span><span>خطوات استلام الجائزة</span></div>
+                    <ul class="instructions-list">
+                        <li><span>1</span> احتفظ بصورة من كود الجائزة</li>
+                        <li><span>2</span> توجه لأقرب فرع Red Strong</li>
+                        <li><span>3</span> أظهر الكود للموظف</li>
+                        <li><span>4</span> استلم جائزتك! 🎁</li>
+                    </ul>
+                </div>
+                <button class="btn btn-whatsapp" onclick="shareWhatsApp()"><span>📤</span><span>مشاركة عبر واتساب</span></button>
+                <button class="btn btn-secondary" onclick="resetCheck()"><span>🔄</span><span>تحقق مرة أخرى</span></button>
+                <a href="/game.html" class="back-link"><span>←</span><span>العودة للعبة</span></a>
+            </div>
+            <div class="result-section" id="not-winner-section">
+                <div class="not-winner-card"><div class="not-winner-icon">😔</div><h2 class="not-winner-title">لم تفز بعد</h2><p class="not-winner-text">لم يتم اختيارك من ضمن الفائزين هذه المرة</p></div>
+                <p class="text-center text-muted mt-3">💪 لا تيأس! استمر باللعب لزيادة فرصك</p>
+                <a href="/game.html" class="btn btn-gold"><span>🎮</span><span>العب مرة أخرى</span></a>
+                <button class="btn btn-secondary" onclick="resetCheck()"><span>🔄</span><span>تحقق مرة أخرى</span></button>
+            </div>
+            <div class="result-section" id="not-found-section">
+                <div class="not-winner-card"><div class="not-winner-icon">❓</div><h2 class="not-winner-title">رقم غير مسجل</h2><p class="not-winner-text">هذا الرقم غير مسجل في اللعبة</p></div>
+                <p class="text-center text-muted mt-3">🎯 سجّل الآن والعب للفوز بجوائز قيمة!</p>
+                <a href="/game.html" class="btn btn-gold"><span>🎮</span><span>سجّل والعب</span></a>
+                <button class="btn btn-secondary" onclick="resetCheck()"><span>🔄</span><span>تحقق مرة أخرى</span></button>
+            </div>
+        </div>
+    </div>
+    <script>
+        function createParticles(){const c=document.getElementById('particles');for(let i=0;i<20;i++){const p=document.createElement('div');p.className='particle';p.style.left=Math.random()*100+'%';p.style.animationDelay=Math.random()*15+'s';p.style.animationDuration=(15+Math.random()*10)+'s';c.appendChild(p);}}
+        createParticles();
+        function toggleMode(){const b=document.body,btn=document.getElementById('mode-btn');if(b.classList.contains('dark-mode')){b.classList.replace('dark-mode','light-mode');btn.textContent='☀️';localStorage.setItem('rs_mode','light');}else{b.classList.replace('light-mode','dark-mode');btn.textContent='🌙';localStorage.setItem('rs_mode','dark');}}
+        function loadMode(){if(localStorage.getItem('rs_mode')==='light'){document.body.classList.replace('dark-mode','light-mode');document.getElementById('mode-btn').textContent='☀️';}}
+        function formatPhone(p){if(!p)return null;let c=p.replace(/\D/g,'');if(c.startsWith('0'))c=c.substring(1);if(c.startsWith('964'))c=c.substring(3);if(!c.startsWith('7')||c.length!==10)return null;return c;}
+        function showSection(id){document.querySelectorAll('.result-section').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active');}
+        function resetCheck(){showSection('check-section');}
+        function startCountdown(){function getNextFriday(){const n=new Date(),f=new Date(n);f.setDate(n.getDate()+(5-n.getDay()+7)%7);f.setHours(20,0,0,0);if(f<=n)f.setDate(f.getDate()+7);return f;}function update(){const n=new Date(),t=getNextFriday(),d=t-n;if(d<=0)return;const days=Math.floor(d/(1000*60*60*24)),hours=Math.floor((d%(1000*60*60*24))/(1000*60*60)),mins=Math.floor((d%(1000*60*60))/(1000*60)),secs=Math.floor((d%(1000*60))/1000);document.getElementById('countdown-days').textContent=String(days).padStart(2,'0');document.getElementById('countdown-hours').textContent=String(hours).padStart(2,'0');document.getElementById('countdown-mins').textContent=String(mins).padStart(2,'0');document.getElementById('countdown-secs').textContent=String(secs).padStart(2,'0');}update();setInterval(update,1000);}
+        async function loadPlayerStats(){const phone=formatPhone(document.getElementById('phone').value);if(!phone)return;try{const res=await fetch('/api/player-stats/'+phone);if(res.ok){const d=await res.json();document.getElementById('player-score').textContent=d.score||0;document.getElementById('player-games').textContent=d.games_played||0;document.getElementById('player-rank').textContent=d.rank?'#'+d.rank:'-';const progress=Math.min((d.score||0)/1000*100,100);document.getElementById('progress-fill').style.width=progress+'%';document.getElementById('progress-percent').textContent=Math.round(progress)+'%';}}catch(e){}}
+        async function loadPrize(){try{const res=await fetch('/api/prizes/active'),prizes=await res.json();if(prizes&&prizes.length>0){const p=prizes[0];document.getElementById('prize-card').style.display='flex';document.getElementById('prize-name').textContent=p.name;document.getElementById('prize-desc').textContent=p.description||'العب وافوز!';if(p.image)document.getElementById('prize-image').src=p.image;}}catch(e){}}
+        function createConfetti(){const c=document.getElementById('confetti');c.innerHTML='';const colors=['#ffd700','#e31e24','#00d9a5','#3b82f6','#ff6b6b'];for(let i=0;i<60;i++){const p=document.createElement('div');p.className='confetti-piece';p.style.left=Math.random()*100+'%';p.style.background=colors[Math.floor(Math.random()*colors.length)];p.style.animationDelay=Math.random()*3+'s';p.style.borderRadius=Math.random()>0.5?'50%':'0';c.appendChild(p);}setTimeout(()=>c.innerHTML='',5000);}
+        function shareWhatsApp(){const code=document.getElementById('winner-code').textContent;const text='🏆 مبروك! فزت بجائزة من Red Strong!\n\n🎁 كود الجائزة: '+code+'\n\n🎮 العب أنت أيضاً: '+window.location.origin+'/game.html';window.open('https://wa.me/?text='+encodeURIComponent(text),'_blank');}
+        async function checkWin(){const phoneRaw=document.getElementById('phone').value,phone=formatPhone(phoneRaw);if(!phone){alert('رقم الهاتف غير صحيح!');return;}showSection('loading-section');try{const res=await fetch('/api/check-win',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone,deviceInfo:{deviceId:navigator.userAgent}})});const data=await res.json();setTimeout(()=>{if(data.error==='not_found'){showSection('not-found-section');}else if(data.isWinner){document.getElementById('winner-code').textContent=data.prizeCode||'XXXX-XXXX';showSection('winner-section');createConfetti();}else{showSection('not-winner-section');}},1500);}catch(err){alert('حدث خطأ');showSection('check-section');}}
+        async function loadSettings(){try{const res=await fetch('/api/settings/public'),s=await res.json();if(s.site_name)document.getElementById('site-name').textContent=s.site_name.toUpperCase();if(s.logo_image)document.getElementById('site-logo').src=s.logo_image;}catch(e){}}
+        window.addEventListener('load',()=>{loadMode();loadSettings();loadPrize();startCountdown();let phone=null;const rsPlayer=localStorage.getItem('rs_player');if(rsPlayer){try{phone=JSON.parse(rsPlayer).phone;}catch(e){}}if(!phone){const lastPlayer=localStorage.getItem('last_player');if(lastPlayer){try{phone=JSON.parse(lastPlayer).phone;}catch(e){}}}if(phone){phone=phone.replace(/\D/g,'');if(phone.startsWith('964'))phone=phone.substring(3);if(!phone.startsWith('0')&&phone.startsWith('7'))phone='0'+phone;document.getElementById('phone').value=phone;loadPlayerStats();}else{alert('لم يتم العثور على رقم مسجل. سجّل أولاً!');window.location.href='/game.html';}});
+    </script>
+</body>
+</html>
