@@ -14,6 +14,20 @@ const XLSX = require('xlsx');
 const fs = require('fs');
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
+const twilio = require('twilio');
+const twilioClient = process.env.TWILIO_ACCOUNT_SID ? twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN) : null;
+const sendWhatsApp = async (to, message) => {
+    if (!twilioClient) return false;
+    try {
+        const num = to.startsWith('0') ? '+964' + to.substring(1) : to;
+        await twilioClient.messages.create({ body: message, from: 'whatsapp:' + process.env.TWILIO_WHATSAPP_NUMBER, to: 'whatsapp:' + num });
+        console.log('WhatsApp sent to:', num);
+        return true;
+    } catch (err) { console.error('WhatsApp error:', err.message); return false; }
+};
+
+
+
 
 const app = express();
 
@@ -1155,7 +1169,11 @@ app.post('/api/register', [
         );
 
         console.log('✅ New player registered:', result.rows[0].name);
-        res.json({ success: true, player: result.rows[0] });
+        const winner = result.rows[0];
+        // Send WhatsApp to winner
+        const msg = '🎉 مبروك ' + winner.name + '! لقد فزت بجائزة من Red Strong! كود الجائزة: ' + winner.prize_code + ' - راجع أقرب فرع لاستلام جائزتك.';
+        sendWhatsApp(winner.phone, msg);
+        res.json({ success: true, player: winner });
     } catch (err) {
         console.error('❌ Error in /api/register:', err);
         res.status(500).json({ error: 'حدث خطأ في التسجيل' });
