@@ -1,6 +1,6 @@
 {
   "name": "tetris-game",
-  "version": "57.0.0",
+  "version": "58.0.0",
   "description": "Red Strong Tetris Game - Ultimate Edition",
   "main": "server.js",
   "scripts": {
