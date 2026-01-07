@@ -14,6 +14,7 @@ const XLSX = require('xlsx');
 const fs = require('fs');
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
+const PDFDocument = require('pdfkit');
 const twilio = require('twilio');
 const twilioClient = process.env.TWILIO_ACCOUNT_SID ? twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN) : null;
 const speakeasy = require('speakeasy');
@@ -609,6 +610,31 @@ const initDB = async () => {
                 difficulty VARCHAR(20) DEFAULT 'medium',
                 tetris_count INTEGER DEFAULT 0,
                 played_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
+        
+        // Daily Rewards table
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS daily_rewards (
+                id SERIAL PRIMARY KEY,
+                phone VARCHAR(20) NOT NULL,
+                reward INTEGER NOT NULL,
+                streak INTEGER DEFAULT 1,
+                claimed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
+        // Contest Winners table
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS contest_winners (
+                id SERIAL PRIMARY KEY,
+                phone VARCHAR(20) NOT NULL,
+                name VARCHAR(100),
+                rank INTEGER NOT NULL,
+                prize INTEGER NOT NULL,
+                week_start DATE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         `);
 
@@ -3911,6 +3937,753 @@ app.post('/api/game/stats', async (req, res) => {
         `, [score, phone]);
         
         res.json({ success: true });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+
+
+
+// ============== Referral System ==============
+
+// Generate referral code for player
+app.post('/api/referral/generate', async (req, res) => {
+    const { phone } = req.body;
+    try {
+        // Check if player exists
+        const player = await pool.query('SELECT * FROM players WHERE phone = $1', [phone]);
+        if (player.rows.length === 0) {
+            return res.status(404).json({ error: 'اللاعب غير موجود' });
+        }
+        
+        // Check if already has referral code
+        if (player.rows[0].referral_code) {
+            return res.json({ success: true, code: player.rows[0].referral_code });
+        }
+        
+        // Generate new code
+        const code = 'RS' + Math.random().toString(36).substring(2, 8).toUpperCase();
+        await pool.query('UPDATE players SET referral_code = $1 WHERE phone = $2', [code, phone]);
+        
+        res.json({ success: true, code: code });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Apply referral code
+app.post('/api/referral/apply', async (req, res) => {
+    const { phone, referralCode } = req.body;
+    try {
+        // Check if player already used a referral
+        const player = await pool.query('SELECT * FROM players WHERE phone = $1', [phone]);
+        if (player.rows.length === 0) {
+            return res.status(404).json({ error: 'اللاعب غير موجود' });
+        }
+        
+        if (player.rows[0].referred_by) {
+            return res.status(400).json({ error: 'لقد استخدمت كود إحالة مسبقاً' });
+        }
+        
+        // Find referrer
+        const referrer = await pool.query('SELECT * FROM players WHERE referral_code = $1', [referralCode]);
+        if (referrer.rows.length === 0) {
+            return res.status(404).json({ error: 'كود الإحالة غير صحيح' });
+        }
+        
+        // Can't refer yourself
+        if (referrer.rows[0].phone === phone) {
+            return res.status(400).json({ error: 'لا يمكنك إحالة نفسك' });
+        }
+        
+        const referrerBonus = 100;
+        const referredBonus = 50;
+        
+        // Add bonus to both
+        await pool.query('UPDATE players SET score = score + $1 WHERE phone = $2', [referrerBonus, referrer.rows[0].phone]);
+        await pool.query('UPDATE players SET score = score + $1, referred_by = $2 WHERE phone = $3', [referredBonus, referralCode, phone]);
+        
+        // Record referral
+        await pool.query(
+            'INSERT INTO referrals (referrer_phone, referred_phone, referrer_bonus, referred_bonus, status, completed_at) VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)',
+            [referrer.rows[0].phone, phone, referrerBonus, referredBonus, 'completed']
+        );
+        
+        res.json({ 
+            success: true, 
+            message: 'تم تطبيق كود الإحالة بنجاح',
+            bonus: referredBonus 
+        });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Get referral stats
+app.get('/api/referral/stats/:phone', async (req, res) => {
+    try {
+        const player = await pool.query('SELECT referral_code FROM players WHERE phone = $1', [req.params.phone]);
+        if (player.rows.length === 0) {
+            return res.status(404).json({ error: 'اللاعب غير موجود' });
+        }
+        
+        const referrals = await pool.query(
+            'SELECT COUNT(*) as count, COALESCE(SUM(referrer_bonus), 0) as total_bonus FROM referrals WHERE referrer_phone = $1',
+            [req.params.phone]
+        );
+        
+        res.json({
+            code: player.rows[0].referral_code,
+            referrals: parseInt(referrals.rows[0].count),
+            totalBonus: parseInt(referrals.rows[0].total_bonus)
+        });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+
+
+
+// ============== Daily Rewards System ==============
+
+// Check and claim daily reward
+app.post('/api/daily-reward/claim', async (req, res) => {
+    const { phone } = req.body;
+    try {
+        const player = await pool.query('SELECT * FROM players WHERE phone = $1', [phone]);
+        if (player.rows.length === 0) {
+            return res.status(404).json({ error: 'اللاعب غير موجود' });
+        }
+        
+        // Check last claim
+        const lastClaim = await pool.query(
+            'SELECT * FROM daily_rewards WHERE phone = $1 ORDER BY claimed_at DESC LIMIT 1',
+            [phone]
+        );
+        
+        const today = new Date().toDateString();
+        
+        if (lastClaim.rows.length > 0) {
+            const lastClaimDate = new Date(lastClaim.rows[0].claimed_at).toDateString();
+            if (lastClaimDate === today) {
+                return res.status(400).json({ error: 'لقد استلمت مكافأة اليوم، عد غداً', claimed: true });
+            }
+        }
+        
+        // Calculate streak
+        let streak = 1;
+        if (lastClaim.rows.length > 0) {
+            const yesterday = new Date();
+            yesterday.setDate(yesterday.getDate() - 1);
+            const lastClaimDate = new Date(lastClaim.rows[0].claimed_at).toDateString();
+            
+            if (lastClaimDate === yesterday.toDateString()) {
+                streak = lastClaim.rows[0].streak + 1;
+            }
+        }
+        
+        // Rewards based on streak (max 7 days cycle)
+        const rewards = [10, 20, 30, 50, 75, 100, 150];
+        const reward = rewards[Math.min(streak - 1, 6)];
+        
+        // Record claim
+        await pool.query(
+            'INSERT INTO daily_rewards (phone, reward, streak) VALUES ($1, $2, $3)',
+            [phone, reward, streak]
+        );
+        
+        // Add reward to player
+        await pool.query('UPDATE players SET score = score + $1 WHERE phone = $2', [reward, phone]);
+        
+        res.json({
+            success: true,
+            reward: reward,
+            streak: streak,
+            nextReward: rewards[Math.min(streak, 6)],
+            message: 'مبروك! حصلت على ' + reward + ' نقطة'
+        });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Get daily reward status
+app.get('/api/daily-reward/status/:phone', async (req, res) => {
+    try {
+        const lastClaim = await pool.query(
+            'SELECT * FROM daily_rewards WHERE phone = $1 ORDER BY claimed_at DESC LIMIT 1',
+            [req.params.phone]
+        );
+        
+        const rewards = [10, 20, 30, 50, 75, 100, 150];
+        const today = new Date().toDateString();
+        
+        let canClaim = true;
+        let streak = 0;
+        let nextReward = rewards[0];
+        
+        if (lastClaim.rows.length > 0) {
+            const lastClaimDate = new Date(lastClaim.rows[0].claimed_at).toDateString();
+            streak = lastClaim.rows[0].streak;
+            
+            if (lastClaimDate === today) {
+                canClaim = false;
+                nextReward = rewards[Math.min(streak, 6)];
+            } else {
+                const yesterday = new Date();
+                yesterday.setDate(yesterday.getDate() - 1);
+                
+                if (lastClaimDate === yesterday.toDateString()) {
+                    nextReward = rewards[Math.min(streak, 6)];
+                } else {
+                    streak = 0;
+                    nextReward = rewards[0];
+                }
+            }
+        }
+        
+        res.json({
+            canClaim: canClaim,
+            streak: streak,
+            nextReward: nextReward,
+            rewards: rewards
+        });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+
+
+
+// ============== Weekly Contest System ==============
+
+// Get weekly leaderboard with prizes
+app.get('/api/contest/weekly', async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT 
+                name, 
+                province, 
+                CONCAT(SUBSTRING(phone, 1, 3), '****', SUBSTRING(phone, 8, 3)) as phone,
+                score,
+                played_at
+            FROM players 
+            WHERE played_at >= DATE_TRUNC('week', CURRENT_DATE)
+            AND score > 0
+            ORDER BY score DESC 
+            LIMIT 10
+        `);
+        
+        // Add rank and prize info
+        const prizes = ['🥇 المركز الأول - 1000 نقطة', '🥈 المركز الثاني - 500 نقطة', '🥉 المركز الثالث - 250 نقطة'];
+        const leaderboard = result.rows.map((player, index) => ({
+            ...player,
+            rank: index + 1,
+            prize: index < 3 ? prizes[index] : null
+        }));
+        
+        // Get week info
+        const weekStart = new Date();
+        weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekEnd.getDate() + 6);
+        
+        res.json({
+            leaderboard: leaderboard,
+            weekStart: weekStart.toISOString(),
+            weekEnd: weekEnd.toISOString(),
+            prizes: [
+                { rank: 1, prize: 1000, label: 'المركز الأول' },
+                { rank: 2, prize: 500, label: 'المركز الثاني' },
+                { rank: 3, prize: 250, label: 'المركز الثالث' }
+            ]
+        });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Get player's weekly rank
+app.get('/api/contest/rank/:phone', async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT phone, score,
+                   RANK() OVER (ORDER BY score DESC) as rank
+            FROM players 
+            WHERE played_at >= DATE_TRUNC('week', CURRENT_DATE)
+            AND score > 0
+        `);
+        
+        const playerRank = result.rows.find(r => r.phone === req.params.phone);
+        
+        res.json({
+            rank: playerRank ? parseInt(playerRank.rank) : null,
+            score: playerRank ? playerRank.score : 0,
+            totalPlayers: result.rows.length
+        });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Admin - Distribute weekly prizes (run manually or via cron)
+app.post('/api/admin/contest/distribute', authenticateToken, async (req, res) => {
+    try {
+        const prizes = [1000, 500, 250];
+        
+        // Get top 3 from last week
+        const winners = await pool.query(`
+            SELECT phone, name, score
+            FROM players 
+            WHERE played_at >= DATE_TRUNC('week', CURRENT_DATE) - INTERVAL '7 days'
+            AND played_at < DATE_TRUNC('week', CURRENT_DATE)
+            AND score > 0
+            ORDER BY score DESC 
+            LIMIT 3
+        `);
+        
+        const distributed = [];
+        
+        for (let i = 0; i < winners.rows.length; i++) {
+            const winner = winners.rows[i];
+            const prize = prizes[i];
+            
+            await pool.query('UPDATE players SET score = score + $1 WHERE phone = $2', [prize, winner.phone]);
+            
+            // Record in contest_winners
+            await pool.query(
+                'INSERT INTO contest_winners (phone, name, rank, prize, week_start) VALUES ($1, $2, $3, $4, DATE_TRUNC(\'week\', CURRENT_DATE) - INTERVAL \'7 days\')',
+                [winner.phone, winner.name, i + 1, prize]
+            );
+            
+            distributed.push({
+                rank: i + 1,
+                name: winner.name,
+                phone: winner.phone,
+                prize: prize
+            });
+        }
+        
+        res.json({ success: true, winners: distributed });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Get past contest winners
+app.get('/api/contest/history', async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT 
+                name,
+                CONCAT(SUBSTRING(phone, 1, 3), '****', SUBSTRING(phone, 8, 3)) as phone,
+                rank,
+                prize,
+                week_start
+            FROM contest_winners 
+            ORDER BY week_start DESC, rank ASC
+            LIMIT 30
+        `);
+        
+        res.json(result.rows);
+    } catch (err) {
+        console.error(err);
+        res.json([]);
+    }
+});
+
+
+
+
+// ============== PDF Reports ==============
+
+// Players Report PDF
+app.get('/api/admin/reports/players-pdf', authenticateToken, async (req, res) => {
+    try {
+        const result = await pool.query('SELECT name, phone, province, score, status, created_at FROM players ORDER BY score DESC LIMIT 100');
+        
+        const doc = new PDFDocument({ margin: 50 });
+        
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', 'attachment; filename=players_report_' + Date.now() + '.pdf');
+        
+        doc.pipe(res);
+        
+        // Header
+        doc.fontSize(24).text('Red Strong Tetris', { align: 'center' });
+        doc.fontSize(16).text('Players Report', { align: 'center' });
+        doc.fontSize(10).text('Generated: ' + new Date().toLocaleString('ar-IQ'), { align: 'center' });
+        doc.moveDown(2);
+        
+        // Stats Summary
+        const totalPlayers = result.rows.length;
+        const totalScore = result.rows.reduce((sum, p) => sum + p.score, 0);
+        const avgScore = Math.round(totalScore / totalPlayers) || 0;
+        
+        doc.fontSize(12).text('Total Players: ' + totalPlayers);
+        doc.text('Average Score: ' + avgScore);
+        doc.moveDown(2);
+        
+        // Table Header
+        doc.fontSize(10).font('Helvetica-Bold');
+        doc.text('Rank', 50, doc.y, { width: 40 });
+        doc.text('Name', 90, doc.y - 12, { width: 120 });
+        doc.text('Phone', 210, doc.y - 12, { width: 100 });
+        doc.text('Province', 310, doc.y - 12, { width: 80 });
+        doc.text('Score', 390, doc.y - 12, { width: 60 });
+        doc.text('Status', 450, doc.y - 12, { width: 60 });
+        doc.moveDown();
+        
+        // Draw line
+        doc.moveTo(50, doc.y).lineTo(550, doc.y).stroke();
+        doc.moveDown(0.5);
+        
+        // Table Data
+        doc.font('Helvetica');
+        result.rows.forEach((player, index) => {
+            if (doc.y > 700) {
+                doc.addPage();
+                doc.y = 50;
+            }
+            
+            const y = doc.y;
+            doc.text(String(index + 1), 50, y, { width: 40 });
+            doc.text(player.name || '-', 90, y, { width: 120 });
+            doc.text(player.phone || '-', 210, y, { width: 100 });
+            doc.text(player.province || '-', 310, y, { width: 80 });
+            doc.text(String(player.score), 390, y, { width: 60 });
+            doc.text(player.status || '-', 450, y, { width: 60 });
+            doc.moveDown(0.8);
+        });
+        
+        doc.end();
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Winners Report PDF
+app.get('/api/admin/reports/winners-pdf', authenticateToken, async (req, res) => {
+    try {
+        const result = await pool.query("SELECT name, phone, province, score, prize_code, won_at, claimed_at FROM players WHERE status IN ('winner', 'claimed') ORDER BY won_at DESC");
+        
+        const doc = new PDFDocument({ margin: 50 });
+        
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', 'attachment; filename=winners_report_' + Date.now() + '.pdf');
+        
+        doc.pipe(res);
+        
+        // Header
+        doc.fontSize(24).text('Red Strong Tetris', { align: 'center' });
+        doc.fontSize(16).text('Winners Report', { align: 'center' });
+        doc.fontSize(10).text('Generated: ' + new Date().toLocaleString('ar-IQ'), { align: 'center' });
+        doc.moveDown(2);
+        
+        // Stats
+        const totalWinners = result.rows.length;
+        const claimed = result.rows.filter(w => w.claimed_at).length;
+        const pending = totalWinners - claimed;
+        
+        doc.fontSize(12).text('Total Winners: ' + totalWinners);
+        doc.text('Claimed: ' + claimed);
+        doc.text('Pending: ' + pending);
+        doc.moveDown(2);
+        
+        // Table
+        doc.fontSize(9).font('Helvetica-Bold');
+        doc.text('#', 50, doc.y, { width: 30 });
+        doc.text('Name', 80, doc.y - 10, { width: 100 });
+        doc.text('Phone', 180, doc.y - 10, { width: 90 });
+        doc.text('Province', 270, doc.y - 10, { width: 70 });
+        doc.text('Prize Code', 340, doc.y - 10, { width: 80 });
+        doc.text('Status', 420, doc.y - 10, { width: 60 });
+        doc.moveDown();
+        
+        doc.moveTo(50, doc.y).lineTo(550, doc.y).stroke();
+        doc.moveDown(0.5);
+        
+        doc.font('Helvetica');
+        result.rows.forEach((winner, index) => {
+            if (doc.y > 700) {
+                doc.addPage();
+                doc.y = 50;
+            }
+            
+            const y = doc.y;
+            const status = winner.claimed_at ? 'Claimed' : 'Pending';
+            doc.text(String(index + 1), 50, y, { width: 30 });
+            doc.text(winner.name || '-', 80, y, { width: 100 });
+            doc.text(winner.phone || '-', 180, y, { width: 90 });
+            doc.text(winner.province || '-', 270, y, { width: 70 });
+            doc.text(winner.prize_code || '-', 340, y, { width: 80 });
+            doc.text(status, 420, y, { width: 60 });
+            doc.moveDown(0.8);
+        });
+        
+        doc.end();
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Daily Stats Report PDF
+app.get('/api/admin/reports/daily-pdf', authenticateToken, async (req, res) => {
+    try {
+        const today = await pool.query("SELECT COUNT(*) as count FROM players WHERE DATE(created_at) = CURRENT_DATE");
+        const winners = await pool.query("SELECT COUNT(*) as count FROM players WHERE DATE(won_at) = CURRENT_DATE");
+        const claimed = await pool.query("SELECT COUNT(*) as count FROM players WHERE DATE(claimed_at) = CURRENT_DATE");
+        const topPlayers = await pool.query("SELECT name, phone, province, score FROM players WHERE DATE(played_at) = CURRENT_DATE ORDER BY score DESC LIMIT 10");
+        
+        const doc = new PDFDocument({ margin: 50 });
+        
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', 'attachment; filename=daily_report_' + Date.now() + '.pdf');
+        
+        doc.pipe(res);
+        
+        // Header
+        doc.fontSize(24).text('Red Strong Tetris', { align: 'center' });
+        doc.fontSize(16).text('Daily Report', { align: 'center' });
+        doc.fontSize(12).text(new Date().toLocaleDateString('ar-IQ'), { align: 'center' });
+        doc.moveDown(2);
+        
+        // Stats
+        doc.fontSize(14).font('Helvetica-Bold').text('Today Statistics:');
+        doc.moveDown(0.5);
+        doc.fontSize(12).font('Helvetica');
+        doc.text('New Registrations: ' + today.rows[0].count);
+        doc.text('New Winners: ' + winners.rows[0].count);
+        doc.text('Prizes Claimed: ' + claimed.rows[0].count);
+        doc.moveDown(2);
+        
+        // Top Players Today
+        doc.fontSize(14).font('Helvetica-Bold').text('Top 10 Players Today:');
+        doc.moveDown();
+        
+        doc.fontSize(10).font('Helvetica');
+        topPlayers.rows.forEach((player, index) => {
+            doc.text((index + 1) + '. ' + player.name + ' - ' + player.score + ' points (' + player.province + ')');
+        });
+        
+        doc.end();
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+
+
+
+// ============== Advanced Statistics ==============
+
+// Dashboard Overview
+app.get('/api/admin/stats/overview', authenticateToken, async (req, res) => {
+    try {
+        const total = await pool.query('SELECT COUNT(*) FROM players');
+        const today = await pool.query("SELECT COUNT(*) FROM players WHERE DATE(created_at) = CURRENT_DATE");
+        const thisWeek = await pool.query("SELECT COUNT(*) FROM players WHERE created_at >= DATE_TRUNC('week', CURRENT_DATE)");
+        const thisMonth = await pool.query("SELECT COUNT(*) FROM players WHERE created_at >= DATE_TRUNC('month', CURRENT_DATE)");
+        
+        const winners = await pool.query("SELECT COUNT(*) FROM players WHERE status IN ('winner', 'claimed')");
+        const pendingPrizes = await pool.query("SELECT COUNT(*) FROM players WHERE status = 'winner'");
+        const claimedPrizes = await pool.query("SELECT COUNT(*) FROM players WHERE status = 'claimed'");
+        
+        const avgScore = await pool.query("SELECT ROUND(AVG(score)) as avg FROM players WHERE score > 0");
+        const maxScore = await pool.query("SELECT MAX(score) as max FROM players");
+        const totalScore = await pool.query("SELECT SUM(score) as total FROM players");
+        
+        const activeToday = await pool.query("SELECT COUNT(*) FROM players WHERE DATE(played_at) = CURRENT_DATE");
+        
+        res.json({
+            players: {
+                total: parseInt(total.rows[0].count),
+                today: parseInt(today.rows[0].count),
+                thisWeek: parseInt(thisWeek.rows[0].count),
+                thisMonth: parseInt(thisMonth.rows[0].count)
+            },
+            prizes: {
+                totalWinners: parseInt(winners.rows[0].count),
+                pending: parseInt(pendingPrizes.rows[0].count),
+                claimed: parseInt(claimedPrizes.rows[0].count)
+            },
+            scores: {
+                average: parseInt(avgScore.rows[0].avg) || 0,
+                highest: parseInt(maxScore.rows[0].max) || 0,
+                total: parseInt(totalScore.rows[0].total) || 0
+            },
+            activity: {
+                activeToday: parseInt(activeToday.rows[0].count)
+            }
+        });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Hourly Activity Chart
+app.get('/api/admin/stats/hourly', authenticateToken, async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT 
+                EXTRACT(HOUR FROM created_at) as hour,
+                COUNT(*) as registrations
+            FROM players 
+            WHERE created_at >= CURRENT_DATE
+            GROUP BY hour
+            ORDER BY hour
+        `);
+        
+        // Fill missing hours with 0
+        const hourlyData = Array(24).fill(0);
+        result.rows.forEach(row => {
+            hourlyData[parseInt(row.hour)] = parseInt(row.registrations);
+        });
+        
+        res.json({
+            labels: Array.from({length: 24}, (_, i) => i + ':00'),
+            data: hourlyData
+        });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Daily Registrations Chart (Last 30 days)
+app.get('/api/admin/stats/daily', authenticateToken, async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT 
+                DATE(created_at) as date,
+                COUNT(*) as count
+            FROM players 
+            WHERE created_at >= CURRENT_DATE - INTERVAL '30 days'
+            GROUP BY DATE(created_at)
+            ORDER BY date
+        `);
+        
+        res.json(result.rows);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Province Distribution Chart
+app.get('/api/admin/stats/provinces', authenticateToken, async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT 
+                province,
+                COUNT(*) as count,
+                ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 2) as percentage
+            FROM players 
+            GROUP BY province
+            ORDER BY count DESC
+        `);
+        
+        res.json(result.rows);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Score Distribution Chart
+app.get('/api/admin/stats/score-distribution', authenticateToken, async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT 
+                CASE 
+                    WHEN score = 0 THEN '0'
+                    WHEN score BETWEEN 1 AND 100 THEN '1-100'
+                    WHEN score BETWEEN 101 AND 500 THEN '101-500'
+                    WHEN score BETWEEN 501 AND 1000 THEN '501-1000'
+                    WHEN score BETWEEN 1001 AND 2000 THEN '1001-2000'
+                    ELSE '2000+'
+                END as range,
+                COUNT(*) as count
+            FROM players
+            GROUP BY range
+            ORDER BY 
+                CASE range
+                    WHEN '0' THEN 1
+                    WHEN '1-100' THEN 2
+                    WHEN '101-500' THEN 3
+                    WHEN '501-1000' THEN 4
+                    WHEN '1001-2000' THEN 5
+                    ELSE 6
+                END
+        `);
+        
+        res.json(result.rows);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Growth Comparison (This week vs Last week)
+app.get('/api/admin/stats/growth', authenticateToken, async (req, res) => {
+    try {
+        const thisWeek = await pool.query("SELECT COUNT(*) FROM players WHERE created_at >= DATE_TRUNC('week', CURRENT_DATE)");
+        const lastWeek = await pool.query("SELECT COUNT(*) FROM players WHERE created_at >= DATE_TRUNC('week', CURRENT_DATE) - INTERVAL '7 days' AND created_at < DATE_TRUNC('week', CURRENT_DATE)");
+        
+        const thisWeekWinners = await pool.query("SELECT COUNT(*) FROM players WHERE won_at >= DATE_TRUNC('week', CURRENT_DATE)");
+        const lastWeekWinners = await pool.query("SELECT COUNT(*) FROM players WHERE won_at >= DATE_TRUNC('week', CURRENT_DATE) - INTERVAL '7 days' AND won_at < DATE_TRUNC('week', CURRENT_DATE)");
+        
+        const calcGrowth = (current, previous) => {
+            if (previous === 0) return current > 0 ? 100 : 0;
+            return Math.round(((current - previous) / previous) * 100);
+        };
+        
+        res.json({
+            registrations: {
+                thisWeek: parseInt(thisWeek.rows[0].count),
+                lastWeek: parseInt(lastWeek.rows[0].count),
+                growth: calcGrowth(parseInt(thisWeek.rows[0].count), parseInt(lastWeek.rows[0].count))
+            },
+            winners: {
+                thisWeek: parseInt(thisWeekWinners.rows[0].count),
+                lastWeek: parseInt(lastWeekWinners.rows[0].count),
+                growth: calcGrowth(parseInt(thisWeekWinners.rows[0].count), parseInt(lastWeekWinners.rows[0].count))
+            }
+        });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Top Players All Time
+app.get('/api/admin/stats/top-players', authenticateToken, async (req, res) => {
+    const { limit = 10 } = req.query;
+    try {
+        const result = await pool.query(`
+            SELECT name, phone, province, score, status, created_at, played_at
+            FROM players 
+            ORDER BY score DESC 
+            LIMIT $1
+        `, [parseInt(limit)]);
+        
+        res.json(result.rows);
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'Server error' });
