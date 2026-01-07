@@ -638,6 +638,13 @@ const initDB = async () => {
             )
         `);
 
+        
+        // Performance Indexes
+        await pool.query('CREATE INDEX IF NOT EXISTS idx_players_device_id ON players(device_id)');
+        await pool.query('CREATE INDEX IF NOT EXISTS idx_players_phone ON players(phone)');
+        await pool.query('CREATE INDEX IF NOT EXISTS idx_players_status ON players(status)');
+        await pool.query('CREATE INDEX IF NOT EXISTS idx_players_score ON players(score DESC)');
+
         console.log('✅ Database tables initialized');
     } catch (err) {
         console.error('❌ Error initializing database:', err);
@@ -1313,8 +1320,8 @@ app.post('/api/check-win', async (req, res) => {
         const deviceId = deviceInfo?.deviceId || req.headers['user-agent'];
         
         const result = await pool.query(
-            'SELECT * FROM players WHERE device_id = $1 OR phone = $2',
-            [deviceId, phone]
+            'SELECT id, name, phone, status, prize_code FROM players WHERE phone = $1 LIMIT 1',
+            [phone]
         );
         
         if (result.rows.length === 0) {
