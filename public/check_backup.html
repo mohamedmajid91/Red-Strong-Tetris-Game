@@ -126,7 +126,6 @@
         .text-center { text-align: center; }
         .mt-3 { margin-top: 15px; }
     </style>
-<link rel="stylesheet" href="/css/language.css">
 </head>
 <body class="dark-mode">
     <div class="bg-container">
@@ -234,14 +233,5 @@
         async function loadSettings(){try{const res=await fetch('/api/settings/public'),s=await res.json();if(s.site_name)document.getElementById('site-name').textContent=s.site_name.toUpperCase();if(s.logo_image)document.getElementById('site-logo').src=s.logo_image;}catch(e){}}
         window.addEventListener('load',()=>{loadMode();loadSettings();loadPrize();startCountdown();let phone=null;const rsPlayer=localStorage.getItem('rs_player');if(rsPlayer){try{phone=JSON.parse(rsPlayer).phone;}catch(e){}}if(!phone){const lastPlayer=localStorage.getItem('last_player');if(lastPlayer){try{phone=JSON.parse(lastPlayer).phone;}catch(e){}}}if(phone){phone=phone.replace(/\D/g,'');if(phone.startsWith('964'))phone=phone.substring(3);if(!phone.startsWith('0')&&phone.startsWith('7'))phone='0'+phone;document.getElementById('phone').value=phone;loadPlayerStats();}else{alert('لم يتم العثور على رقم مسجل. سجّل أولاً!');window.location.href='/game.html';}});
     </script>
-<script src="/js/translations.js"></script>
 </body>
 </html>
-<script>
-    // Initialize language
-    document.addEventListener('DOMContentLoaded', () => {
-        langManager.createSelector('lang-container');
-        document.documentElement.setAttribute('dir', langManager.direction);
-        document.documentElement.setAttribute('lang', langManager.currentLang);
-    });
-</script>
