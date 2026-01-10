@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>تحقق من فوزك - Red Strong</title>
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&family=Orbitron:wght@700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/language.css">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         :root {
@@ -126,7 +127,6 @@
         .text-center { text-align: center; }
         .mt-3 { margin-top: 15px; }
     </style>
-<link rel="stylesheet" href="/css/language.css">
 </head>
 <body class="dark-mode">
     <div class="bg-container">
@@ -230,18 +230,11 @@
         async function loadPrize(){try{const res=await fetch('/api/prizes/active'),prizes=await res.json();if(prizes&&prizes.length>0){const p=prizes[0];document.getElementById('prize-card').style.display='flex';document.getElementById('prize-name').textContent=p.name;document.getElementById('prize-desc').textContent=p.description||'العب وافوز!';if(p.image)document.getElementById('prize-image').src=p.image;}}catch(e){}}
         function createConfetti(){const c=document.getElementById('confetti');c.innerHTML='';const colors=['#ffd700','#e31e24','#00d9a5','#3b82f6','#ff6b6b'];for(let i=0;i<60;i++){const p=document.createElement('div');p.className='confetti-piece';p.style.left=Math.random()*100+'%';p.style.background=colors[Math.floor(Math.random()*colors.length)];p.style.animationDelay=Math.random()*3+'s';p.style.borderRadius=Math.random()>0.5?'50%':'0';c.appendChild(p);}setTimeout(()=>c.innerHTML='',5000);}
         function shareWhatsApp(){const code=document.getElementById('winner-code').textContent;const text='🏆 مبروك! فزت بجائزة من Red Strong!\n\n🎁 كود الجائزة: '+code+'\n\n🎮 العب أنت أيضاً: '+window.location.origin+'/game.html';window.open('https://wa.me/?text='+encodeURIComponent(text),'_blank');}
-        async function checkWin(){const phoneRaw=document.getElementById('phone').value,phone=formatPhone(phoneRaw);if(!phone){alert('رقم الهاتف غير صحيح!');return;}showSection('loading-section');try{const res=await fetch('/api/check-win',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone,deviceInfo:{deviceId:navigator.userAgent}})});const data=await res.json();setTimeout(()=>{if(data.error==='not_found'){showSection('not-found-section');}else if(data.isWinner){document.getElementById('winner-code').textContent=data.prizeCode||'XXXX-XXXX';showSection('winner-section');createConfetti();}else{showSection('not-winner-section');}},300);}catch(err){alert('حدث خطأ');showSection('check-section');}}
+        async function checkWin(){const phoneRaw=document.getElementById('phone').value,phone=formatPhone(phoneRaw);if(!phone){alert('رقم الهاتف غير صحيح!');return;}showSection('loading-section');try{const res=await fetch('/api/check-win',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone,deviceInfo:{deviceId:navigator.userAgent}})});const data=await res.json();setTimeout(()=>{if(data.error==='not_found'){showSection('not-found-section');}else if(data.isWinner){document.getElementById('winner-code').textContent=data.prizeCode||'XXXX-XXXX';showSection('winner-section');createConfetti();}else{showSection('not-winner-section');}},1500);}catch(err){alert('حدث خطأ');showSection('check-section');}}
         async function loadSettings(){try{const res=await fetch('/api/settings/public'),s=await res.json();if(s.site_name)document.getElementById('site-name').textContent=s.site_name.toUpperCase();if(s.logo_image)document.getElementById('site-logo').src=s.logo_image;}catch(e){}}
         window.addEventListener('load',()=>{loadMode();loadSettings();loadPrize();startCountdown();let phone=null;const rsPlayer=localStorage.getItem('rs_player');if(rsPlayer){try{phone=JSON.parse(rsPlayer).phone;}catch(e){}}if(!phone){const lastPlayer=localStorage.getItem('last_player');if(lastPlayer){try{phone=JSON.parse(lastPlayer).phone;}catch(e){}}}if(phone){phone=phone.replace(/\D/g,'');if(phone.startsWith('964'))phone=phone.substring(3);if(!phone.startsWith('0')&&phone.startsWith('7'))phone='0'+phone;document.getElementById('phone').value=phone;loadPlayerStats();}else{alert('لم يتم العثور على رقم مسجل. سجّل أولاً!');window.location.href='/game.html';}});
     </script>
-<script src="/js/translations.js"></script>
+    <script src="/js/translations.js"></script>
+    <script src="/js/language-loader.js"></script>
 </body>
 </html>
-<script>
-    // Initialize language
-    document.addEventListener('DOMContentLoaded', () => {
-        langManager.createSelector('lang-container');
-        document.documentElement.setAttribute('dir', langManager.direction);
-        document.documentElement.setAttribute('lang', langManager.currentLang);
-    });
-</script>

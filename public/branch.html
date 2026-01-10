@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>نظام استلام الجوائز - الفروع</title>
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/language.css">
     <style>
         :root {
             --primary: #1a1a2e;
@@ -70,7 +71,6 @@
         .toast.error { background: var(--danger); color: white; }
         .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
     </style>
-<link rel="stylesheet" href="/css/language.css">
 </head>
 <body>
     <!-- Login Screen -->
@@ -346,7 +346,7 @@
             setTimeout(() => t.classList.remove('show'), 3000);
         }
     </script>
-<script src="/js/translations.js"></script>
-<script>document.addEventListener("DOMContentLoaded",()=>{if(document.getElementById("lang-container")){langManager.createSelector("lang-container");}document.documentElement.setAttribute("dir",langManager.direction);document.documentElement.setAttribute("lang",langManager.currentLang);});</script>
+    <script src="/js/translations.js"></script>
+    <script src="/js/language-loader.js"></script>
 </body>
 </html>

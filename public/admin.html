@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>لوحة التحكم - Red Strong</title>
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/language.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
@@ -388,7 +389,6 @@
     </style>
     <!-- QR Code Library -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<link rel="stylesheet" href="/css/language.css">
 </head>
 <body>
     <!-- Login Page -->
@@ -3863,8 +3863,7 @@
                         tr:nth-child(even) { background: #f9f9f9; }
                         .footer { margin-top: 30px; text-align: center; color: #666; font-size: 0.9rem; }
                     </style>
-                <link rel="stylesheet" href="/css/language.css">
-</head>
+                </head>
                 <body>
                     <h1>📊 تقرير ${getReportTitle(type)}</h1>
                     <p>تاريخ الإنشاء: ${new Date().toLocaleDateString('ar-IQ')}</p>
@@ -3900,9 +3899,7 @@
                     <div class="footer">
                         <p>تم إنشاء هذا التقرير بواسطة نظام Red Strong</p>
                     </div>
-                <script src="/js/translations.js"></script>
-<script>document.addEventListener("DOMContentLoaded",()=>{const lc=document.createElement("div");lc.id="admin-lang";lc.className="admin-lang-selector";document.body.appendChild(lc);langManager.createSelector("admin-lang");document.documentElement.setAttribute("dir",langManager.direction);document.documentElement.setAttribute("lang",langManager.currentLang);});</script>
-</body>
+                </body>
                 </html>
             `;
             
@@ -6026,8 +6023,11 @@
         
         // Apply theme on load
         applyTheme();
+        
+        // Add admin-page class for language selector positioning
+        document.body.classList.add('admin-page');
     </script>
-<script src="/js/translations.js"></script>
-<script>document.addEventListener("DOMContentLoaded",()=>{const lc=document.createElement("div");lc.id="admin-lang";lc.className="admin-lang-selector";document.body.appendChild(lc);langManager.createSelector("admin-lang");document.documentElement.setAttribute("dir",langManager.direction);document.documentElement.setAttribute("lang",langManager.currentLang);});</script>
+    <script src="/js/translations.js"></script>
+    <script src="/js/language-loader.js"></script>
 </body>
 </html>

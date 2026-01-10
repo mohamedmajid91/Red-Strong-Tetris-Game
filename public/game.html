@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Red Strong Tetris</title>
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&family=Orbitron:wght@700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/language.css">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         :root {
@@ -909,7 +910,6 @@
         .notification-close { position: absolute; top: 50%; right: 15px; transform: translateY(-50%); background: none; border: none; color: white; font-size: 1.2rem; cursor: pointer; opacity: 0.7; }
         .notification-close:hover { opacity: 1; }
     </style>
-<link rel="stylesheet" href="/css/language.css">
 </head>
 <body class="dark-mode">
     <!-- Notification Banner -->
@@ -2468,7 +2468,7 @@
         };
         window.addEventListener('load', () => Game.init());
     </script>
-<script src="/js/translations.js"></script>
-<script>document.addEventListener("DOMContentLoaded",()=>{if(document.getElementById("lang-container")){langManager.createSelector("lang-container");}document.documentElement.setAttribute("dir",langManager.direction);document.documentElement.setAttribute("lang",langManager.currentLang);});</script>
+    <script src="/js/translations.js"></script>
+    <script src="/js/language-loader.js"></script>
 </body>
 </html>
