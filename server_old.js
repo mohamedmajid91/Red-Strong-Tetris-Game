@@ -891,135 +891,6 @@ const sendWhatsAppMessage = async (phone, message) => {
 // Score submission tracking
 const scoreSubmissions = new Map();
 
-// ============== GAME SECURITY SYSTEM ==============
-const GameSecurity = {
-    activeSessions: new Map(),
-    
-    // إنشاء جلسة آمنة
-    createSecureSession(phone, sessionId) {
-        const secureToken = crypto.randomBytes(32).toString('hex');
-        const now = Date.now();
-        
-        this.activeSessions.set(sessionId.toString(), {
-            phone,
-            sessionId,
-            secureToken,
-            startedAt: now,
-            lastActivity: now,
-            moveCount: 0,
-            pauseTime: 0,
-            isPaused: false,
-            pauseStart: null,
-            flags: []
-        });
-        
-        return secureToken;
-    },
-    
-    // تسجيل حركة
-    recordMove(sessionId) {
-        const session = this.activeSessions.get(sessionId.toString());
-        if (!session || session.isPaused) return false;
-        session.moveCount++;
-        session.lastActivity = Date.now();
-        return true;
-    },
-    
-    // إيقاف مؤقت
-    pauseSession(sessionId) {
-        const session = this.activeSessions.get(sessionId.toString());
-        if (!session || session.isPaused) return false;
-        session.isPaused = true;
-        session.pauseStart = Date.now();
-        return true;
-    },
-    
-    // استئناف
-    resumeSession(sessionId) {
-        const session = this.activeSessions.get(sessionId.toString());
-        if (!session || !session.isPaused) return false;
-        session.pauseTime += Date.now() - session.pauseStart;
-        session.isPaused = false;
-        session.pauseStart = null;
-        return true;
-    },
-    
-    // التحقق من النتيجة
-    validateScore(sessionId, submittedScore) {
-        const session = this.activeSessions.get(sessionId.toString());
-        
-        if (!session) {
-            // جلسة غير موجودة - نقبل النقاط مع حد أقصى
-            return { 
-                valid: true, 
-                adjustedScore: Math.min(submittedScore, 5000),
-                reason: 'no_session_fallback',
-                playTime: 0,
-                moveCount: 0,
-                flags: []
-            };
-        }
-        
-        const now = Date.now();
-        const playTime = (now - session.startedAt - session.pauseTime) / 1000;
-        const flags = [];
-        let adjustedScore = submittedScore;
-        
-        // 1. الحد الأقصى للنقاط بناءً على الوقت (150 نقطة/ثانية كحد أقصى)
-        const maxPossibleScore = Math.floor(playTime * 150);
-        if (submittedScore > maxPossibleScore) {
-            flags.push('score_exceeds_time');
-            adjustedScore = maxPossibleScore;
-        }
-        
-        // 2. التحقق من عدد الحركات
-        const minMoves = Math.floor(playTime * 0.3);
-        if (session.moveCount < minMoves && submittedScore > 500) {
-            flags.push('few_moves');
-            adjustedScore = Math.floor(adjustedScore * 0.7);
-        }
-        
-        // 3. سرعة الحركات
-        const movesPerSecond = playTime > 0 ? session.moveCount / playTime : 0;
-        if (movesPerSecond > 15) {
-            flags.push('fast_moves');
-            adjustedScore = Math.floor(adjustedScore * 0.5);
-        }
-        
-        // 4. وقت قصير مع نقاط عالية
-        if (playTime < 15 && submittedScore > 1000) {
-            flags.push('quick_high_score');
-            adjustedScore = Math.min(adjustedScore, 800);
-        }
-        
-        // حذف الجلسة
-        this.activeSessions.delete(sessionId.toString());
-        
-        return {
-            valid: flags.length === 0,
-            originalScore: submittedScore,
-            adjustedScore: Math.max(0, Math.floor(adjustedScore)),
-            playTime: Math.floor(playTime),
-            moveCount: session.moveCount,
-            flags,
-            reason: flags.join(', ') || 'ok'
-        };
-    },
-    
-    // تنظيف
-    cleanup() {
-        const now = Date.now();
-        for (const [id, session] of this.activeSessions) {
-            if (now - session.startedAt > 3600000) {
-                this.activeSessions.delete(id);
-            }
-        }
-    }
-};
-
-// تنظيف كل 10 دقائق
-setInterval(() => GameSecurity.cleanup(), 600000);
-
 // ============== Public API Routes ==============
 
 // Game Status
@@ -1226,13 +1097,9 @@ app.post('/api/session/start', async (req, res) => {
             [phone, currentRound, totalScore, [0, 20, 40, 50][Math.min(currentRound - 1, 3)]]
         );
         
-        // إنشاء جلسة أمان
-        const secureToken = GameSecurity.createSecureSession(phone, result.rows[0].id);
-        
         res.json({
             success: true,
             sessionId: result.rows[0].id,
-            secureToken: secureToken,
             round: currentRound,
             totalScore: totalScore,
             difficultyLevel: [0, 20, 40, 50][Math.min(currentRound - 1, 3)]
@@ -1250,22 +1117,6 @@ app.post('/api/session/end', async (req, res) => {
         const maxRounds = parseInt(await getSetting('max_rounds', '3'));
         const cooldownMinutes = parseInt(await getSetting('cooldown_minutes', '30'));
         
-        // === التحقق من الأمان ===
-        const validation = GameSecurity.validateScore(sessionId, roundScore);
-        const safeScore = validation.adjustedScore;
-        
-        if (!validation.valid) {
-            // تسجيل محاولة الغش
-            try {
-                await pool.query(`
-                    INSERT INTO cheat_logs (phone, attempted_points, allowed_points, time_diff)
-                    VALUES ($1, $2, $3, $4)
-                `, [phone, roundScore, safeScore, validation.playTime]);
-            } catch (e) {}
-            console.log(`⚠️ غش محتمل: ${phone} - أرسل ${roundScore} تم تعديلها إلى ${safeScore} - السبب: ${validation.reason}`);
-        }
-        // === نهاية التحقق ===
-        
         // Get session
         const session = await pool.query(
             'SELECT * FROM game_sessions WHERE id = $1 AND phone = $2',
@@ -1277,7 +1128,7 @@ app.post('/api/session/end', async (req, res) => {
         }
         
         const currentSession = session.rows[0];
-        const newTotalScore = (currentSession.total_score || 0) + safeScore;
+        const newTotalScore = (currentSession.total_score || 0) + roundScore;
         const isLastRound = currentSession.round_number >= maxRounds;
         
         // Calculate cooldown if last round
@@ -1290,7 +1141,7 @@ app.post('/api/session/end', async (req, res) => {
         // Update session
         await pool.query(
             'UPDATE game_sessions SET round_score = $1, total_score = $2, ended_at = CURRENT_TIMESTAMP, cooldown_until = $3 WHERE id = $4',
-            [safeScore, newTotalScore, cooldownUntil, sessionId]
+            [roundScore, newTotalScore, cooldownUntil, sessionId]
         );
         
         // Update player's total score
@@ -1301,7 +1152,7 @@ app.post('/api/session/end', async (req, res) => {
         
         res.json({
             success: true,
-            roundScore: safeScore,
+            roundScore: roundScore,
             totalScore: newTotalScore,
             isLastRound: isLastRound,
             cooldownUntil: cooldownUntil,
@@ -1311,27 +1162,6 @@ app.post('/api/session/end', async (req, res) => {
         console.error('❌ Error in /api/session/end:', err);
         res.status(500).json({ error: 'خطأ في حفظ النتيجة' });
     }
-});
-
-// تسجيل الحركات (للتتبع الدقيق)
-app.post('/api/session/move', (req, res) => {
-    const { sessionId } = req.body;
-    if (sessionId) GameSecurity.recordMove(sessionId);
-    res.json({ success: true });
-});
-
-// إيقاف مؤقت
-app.post('/api/session/pause', (req, res) => {
-    const { sessionId } = req.body;
-    if (sessionId) GameSecurity.pauseSession(sessionId);
-    res.json({ success: true });
-});
-
-// استئناف
-app.post('/api/session/resume', (req, res) => {
-    const { sessionId } = req.body;
-    if (sessionId) GameSecurity.resumeSession(sessionId);
-    res.json({ success: true });
 });
 
 // Leaderboard
