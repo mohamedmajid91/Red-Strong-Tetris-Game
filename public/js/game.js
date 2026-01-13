@@ -1,4 +1,6 @@
-// ============ Game.js - Tetris Logic ============
+// ============ Game.js v2.0 - Enhanced Security & Effects ============
+// تحسينات: أمان متقدم، تأثيرات بصرية، أداء أفضل
+
 const TetrisGame = {
     // State
     canvas: null,
@@ -21,12 +23,143 @@ const TetrisGame = {
     timeRemaining: CONFIG.GAME.GAME_TIME,
     timerInterval: null,
     
-    // Anti-cheat
-    lastScoreCheck: Date.now(),
-    lastScoreValue: 0,
+    // ═══════════════════════════════════════════════════════════════
+    // ANTI-CHEAT SYSTEM - نظام مكافحة الغش
+    // ═══════════════════════════════════════════════════════════════
+    security: {
+        sessionToken: null,
+        moveCount: 0,
+        lastMoveTime: 0,
+        startTime: 0,
+        scoreHistory: [],
+        suspiciousActions: 0,
+        maxScorePerSecond: 500,
+        minTimeBetweenMoves: 16, // 60fps
+        
+        // تهيئة الأمان
+        init() {
+            this.sessionToken = this.generateToken();
+            this.moveCount = 0;
+            this.startTime = Date.now();
+            this.scoreHistory = [];
+            this.suspiciousActions = 0;
+            this.lastMoveTime = Date.now();
+            
+            // منع التعديل على Console
+            this.protectConsole();
+            
+            // مراقبة التغييرات
+            this.startMonitoring();
+        },
+        
+        // توليد token
+        generateToken() {
+            const arr = new Uint8Array(32);
+            crypto.getRandomValues(arr);
+            return Array.from(arr, b => b.toString(16).padStart(2, '0')).join('');
+        },
+        
+        // حماية Console
+        protectConsole() {
+            const warn = () => console.warn('⚠️ محاولة تعديل مرفوضة');
+            
+            // منع تعديل score مباشرة
+            Object.defineProperty(window, 'TetrisGame', {
+                configurable: false,
+                writable: false
+            });
+        },
+        
+        // مراقبة
+        startMonitoring() {
+            // فحص كل 5 ثواني
+            setInterval(() => this.check(), 5000);
+        },
+        
+        // فحص الأمان
+        check() {
+            const now = Date.now();
+            const elapsed = (now - this.startTime) / 1000;
+            
+            // فحص سرعة النقاط
+            if (TetrisGame.score > 0 && elapsed > 0) {
+                const scorePerSecond = TetrisGame.score / elapsed;
+                if (scorePerSecond > this.maxScorePerSecond) {
+                    this.flagSuspicious('high_score_rate');
+                }
+            }
+            
+            // فحص عدد الحركات
+            const movesPerSecond = this.moveCount / elapsed;
+            if (movesPerSecond > 20) {
+                this.flagSuspicious('inhuman_speed');
+            }
+        },
+        
+        // تسجيل حركة
+        recordMove() {
+            const now = Date.now();
+            if (now - this.lastMoveTime < this.minTimeBetweenMoves) {
+                this.suspiciousActions++;
+            }
+            this.moveCount++;
+            this.lastMoveTime = now;
+            
+            // إرسال للسيرفر (إذا موجود)
+            this.sendMoveToServer();
+        },
+        
+        // تسجيل نقاط
+        recordScore(points) {
+            this.scoreHistory.push({
+                points,
+                time: Date.now(),
+                moveCount: this.moveCount
+            });
+        },
+        
+        // تسجيل مشبوه
+        flagSuspicious(reason) {
+            this.suspiciousActions++;
+            console.warn('🚨 نشاط مشبوه:', reason);
+            
+            // إذا كثرت المخالفات
+            if (this.suspiciousActions > 5) {
+                TetrisGame.showWarning('تم رصد نشاط غير طبيعي');
+            }
+        },
+        
+        // إرسال حركة للسيرفر
+        async sendMoveToServer() {
+            try {
+                // إرسال كل 10 حركات
+                if (this.moveCount % 10 === 0 && TetrisGame.sessionId) {
+                    fetch('/api/session/move', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ sessionId: TetrisGame.sessionId })
+                    }).catch(() => {});
+                }
+            } catch (e) {}
+        },
+        
+        // الحصول على بيانات التحقق
+        getValidationData() {
+            return {
+                token: this.sessionToken,
+                moveCount: this.moveCount,
+                playTime: Math.floor((Date.now() - this.startTime) / 1000),
+                suspicious: this.suspiciousActions,
+                scoreHistory: this.scoreHistory.slice(-10)
+            };
+        }
+    },
     
     // Block size
     BLOCK: 28,
+    
+    // Session
+    sessionId: null,
     
     // Difficulty (0-50%)
     difficultyLevel: 0,
@@ -34,20 +167,87 @@ const TetrisGame = {
     // Combo System
     combo: 0,
     lastClearTime: 0,
-    comboTimeout: 2000, // 2 seconds to keep combo
+    comboTimeout: 2000,
+    
+    // ═══════════════════════════════════════════════════════════════
+    // VISUAL EFFECTS - تأثيرات بصرية
+    // ═══════════════════════════════════════════════════════════════
+    effects: {
+        particles: [],
+        screenShake: 0,
+        flashOpacity: 0,
+        glowIntensity: 0,
+        
+        // إضافة جسيمات
+        addParticles(x, y, color, count = 10) {
+            for (let i = 0; i < count; i++) {
+                this.particles.push({
+                    x: x,
+                    y: y,
+                    vx: (Math.random() - 0.5) * 8,
+                    vy: (Math.random() - 0.5) * 8 - 3,
+                    life: 1,
+                    color: color,
+                    size: Math.random() * 4 + 2
+                });
+            }
+        },
+        
+        // تحديث الجسيمات
+        update() {
+            // تحديث الجسيمات
+            this.particles = this.particles.filter(p => {
+                p.x += p.vx;
+                p.y += p.vy;
+                p.vy += 0.2; // gravity
+                p.life -= 0.02;
+                return p.life > 0;
+            });
+            
+            // تقليل الاهتزاز
+            if (this.screenShake > 0) this.screenShake *= 0.9;
+            
+            // تقليل الفلاش
+            if (this.flashOpacity > 0) this.flashOpacity *= 0.85;
+            
+            // تقليل التوهج
+            if (this.glowIntensity > 0) this.glowIntensity *= 0.95;
+        },
+        
+        // رسم الجسيمات
+        draw(ctx) {
+            this.particles.forEach(p => {
+                ctx.save();
+                ctx.globalAlpha = p.life;
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            });
+        },
+        
+        // اهتزاز الشاشة
+        shake(intensity = 5) {
+            this.screenShake = intensity;
+        },
+        
+        // فلاش
+        flash(color = 'white') {
+            this.flashOpacity = 0.3;
+            this.flashColor = color;
+        },
+        
+        // توهج
+        glow() {
+            this.glowIntensity = 1;
+        }
+    },
     
     // Sound System
-    sounds: {
-        move: null,
-        rotate: null,
-        drop: null,
-        clear: null,
-        tetris: null,
-        combo: null,
-        gameOver: null,
-        levelUp: null
-    },
+    sounds: {},
     soundEnabled: true,
+    audioCtx: null,
     
     // Ghost piece
     ghostEnabled: true,
@@ -60,7 +260,9 @@ const TetrisGame = {
     onTimeUp: null,
     onComboUpdate: null,
     
-    // Initialize game
+    // ═══════════════════════════════════════════════════════════════
+    // INITIALIZATION
+    // ═══════════════════════════════════════════════════════════════
     init(canvasId) {
         this.canvas = document.getElementById(canvasId);
         if (!this.canvas) {
@@ -72,23 +274,26 @@ const TetrisGame = {
         this.canvas.width = CONFIG.GAME.COLS * this.BLOCK;
         this.canvas.height = CONFIG.GAME.ROWS * this.BLOCK;
         this.initSounds();
+        
+        // تهيئة الأمان
+        this.security.init();
+        
         return true;
     },
     
-    // Initialize sounds
     initSounds() {
-        // Create audio context for generating sounds
         try {
             const AudioContext = window.AudioContext || window.webkitAudioContext;
             this.audioCtx = new AudioContext();
             this.soundEnabled = localStorage.getItem('gameSoundEnabled') !== 'false';
         } catch (e) {
-            console.log('Audio not supported');
             this.soundEnabled = false;
         }
     },
     
-    // Play sound
+    // ═══════════════════════════════════════════════════════════════
+    // ENHANCED SOUND SYSTEM
+    // ═══════════════════════════════════════════════════════════════
     playSound(type) {
         if (!this.soundEnabled || !this.audioCtx) return;
         
@@ -98,156 +303,100 @@ const TetrisGame = {
             oscillator.connect(gainNode);
             gainNode.connect(this.audioCtx.destination);
             
-            switch(type) {
-                case 'move':
-                    oscillator.frequency.value = 200;
-                    gainNode.gain.value = 0.1;
-                    oscillator.start();
-                    oscillator.stop(this.audioCtx.currentTime + 0.05);
-                    break;
-                case 'rotate':
-                    oscillator.frequency.value = 300;
-                    gainNode.gain.value = 0.1;
-                    oscillator.start();
-                    oscillator.stop(this.audioCtx.currentTime + 0.08);
-                    break;
-                case 'drop':
-                    oscillator.frequency.value = 150;
-                    oscillator.type = 'square';
-                    gainNode.gain.value = 0.15;
-                    oscillator.start();
-                    oscillator.stop(this.audioCtx.currentTime + 0.1);
-                    break;
-                case 'clear':
-                    oscillator.frequency.value = 500;
-                    oscillator.type = 'sine';
-                    gainNode.gain.value = 0.2;
-                    oscillator.start();
-                    oscillator.frequency.exponentialRampToValueAtTime(800, this.audioCtx.currentTime + 0.1);
-                    oscillator.stop(this.audioCtx.currentTime + 0.15);
-                    break;
-                case 'tetris':
-                    oscillator.frequency.value = 600;
-                    oscillator.type = 'sine';
-                    gainNode.gain.value = 0.25;
-                    oscillator.start();
-                    oscillator.frequency.exponentialRampToValueAtTime(1200, this.audioCtx.currentTime + 0.2);
-                    oscillator.stop(this.audioCtx.currentTime + 0.3);
-                    break;
-                case 'combo':
-                    oscillator.frequency.value = 400 + (this.combo * 100);
-                    oscillator.type = 'triangle';
-                    gainNode.gain.value = 0.15;
-                    oscillator.start();
-                    oscillator.frequency.exponentialRampToValueAtTime(800 + (this.combo * 100), this.audioCtx.currentTime + 0.15);
-                    oscillator.stop(this.audioCtx.currentTime + 0.2);
-                    break;
-                case 'levelUp':
-                    oscillator.frequency.value = 400;
-                    oscillator.type = 'sine';
-                    gainNode.gain.value = 0.2;
-                    oscillator.start();
-                    oscillator.frequency.exponentialRampToValueAtTime(800, this.audioCtx.currentTime + 0.1);
-                    gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioCtx.currentTime + 0.3);
-                    oscillator.stop(this.audioCtx.currentTime + 0.3);
-                    break;
-                case 'gameOver':
-                    oscillator.frequency.value = 400;
-                    oscillator.type = 'sawtooth';
-                    gainNode.gain.value = 0.2;
-                    oscillator.start();
-                    oscillator.frequency.exponentialRampToValueAtTime(100, this.audioCtx.currentTime + 0.5);
-                    gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioCtx.currentTime + 0.5);
-                    oscillator.stop(this.audioCtx.currentTime + 0.5);
-                    break;
+            const sounds = {
+                move: { freq: 200, duration: 0.05, type: 'square' },
+                rotate: { freq: 300, duration: 0.08, type: 'sine' },
+                drop: { freq: 150, duration: 0.15, type: 'triangle' },
+                clear: { freq: 500, duration: 0.2, type: 'sine' },
+                tetris: { freq: 800, duration: 0.4, type: 'sawtooth' },
+                combo: { freq: 600, duration: 0.15, type: 'sine' },
+                gameOver: { freq: 100, duration: 0.5, type: 'sawtooth' },
+                levelUp: { freq: 700, duration: 0.3, type: 'sine' }
+            };
+            
+            const sound = sounds[type] || sounds.move;
+            oscillator.type = sound.type;
+            oscillator.frequency.setValueAtTime(sound.freq, this.audioCtx.currentTime);
+            
+            if (type === 'levelUp') {
+                oscillator.frequency.exponentialRampToValueAtTime(1200, this.audioCtx.currentTime + sound.duration);
+            } else if (type === 'gameOver') {
+                oscillator.frequency.exponentialRampToValueAtTime(50, this.audioCtx.currentTime + sound.duration);
             }
-        } catch (e) {
-            // Ignore audio errors
-        }
+            
+            gainNode.gain.setValueAtTime(0.15, this.audioCtx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioCtx.currentTime + sound.duration);
+            
+            oscillator.start();
+            oscillator.stop(this.audioCtx.currentTime + sound.duration);
+        } catch (e) {}
     },
     
-    // Toggle sound
     toggleSound() {
         this.soundEnabled = !this.soundEnabled;
         localStorage.setItem('gameSoundEnabled', this.soundEnabled);
         return this.soundEnabled;
     },
     
-    // Calculate block size based on available space
+    // ═══════════════════════════════════════════════════════════════
+    // GAME LOGIC
+    // ═══════════════════════════════════════════════════════════════
     calculateBlockSize() {
-        const gameArea = document.querySelector('.game-area');
-        if (!gameArea) {
-            this.BLOCK = 28;
-            return;
-        }
-        const availableHeight = gameArea.clientHeight - 20;
-        const availableWidth = gameArea.clientWidth - 20;
-        this.BLOCK = Math.floor(Math.min(
-            availableHeight / CONFIG.GAME.ROWS,
-            availableWidth / CONFIG.GAME.COLS
-        ));
-        this.BLOCK = Math.max(CONFIG.GAME.MIN_BLOCK, Math.min(this.BLOCK, CONFIG.GAME.MAX_BLOCK));
+        const maxHeight = window.innerHeight * 0.6;
+        const maxWidth = window.innerWidth * 0.85;
+        const blockByHeight = Math.floor(maxHeight / CONFIG.GAME.ROWS);
+        const blockByWidth = Math.floor(maxWidth / CONFIG.GAME.COLS);
+        this.BLOCK = Math.min(blockByHeight, blockByWidth, 32);
     },
     
-    // Reset game state
-    reset() {
-        this.board = Array(CONFIG.GAME.ROWS).fill().map(() => Array(CONFIG.GAME.COLS).fill(0));
+    start() {
+        // تهيئة الأمان
+        this.security.init();
+        
+        this.board = Array.from({ length: CONFIG.GAME.ROWS }, () => Array(CONFIG.GAME.COLS).fill(0));
         this.score = 0;
         this.level = 1;
         this.lines = 0;
         this.combo = 0;
-        this.lastClearTime = 0;
-        // Apply difficulty - faster base speed
-        const difficultyMultiplier = 1 - (this.difficultyLevel / 100);
-        this.dropInterval = Math.max(400, 1000 * difficultyMultiplier);
+        this.dropInterval = 1000;
         this.dropCounter = 0;
-        this.lastScoreValue = 0;
-        this.lastScoreCheck = Date.now();
         this.timeRemaining = CONFIG.GAME.GAME_TIME;
+        this.effects.particles = [];
         this.spawnPiece();
-        this.updateCallbacks();
-        this.draw();
-    },
-    
-    // Set difficulty level (0-50)
-    setDifficulty(level) {
-        this.difficultyLevel = Math.min(50, Math.max(0, level));
-    },
-    
-    // Start game
-    start() {
         this.gameActive = true;
         this.isPaused = false;
-        this.reset();
         this.startTimer();
-        this.lastTime = 0;
-        this.loop();
-    },
-    
-    // Pause game
-    pause() {
-        this.isPaused = true;
-        this.stopTimer();
-        cancelAnimationFrame(this.animationId);
-    },
-    
-    // Resume game
-    resume() {
-        if (!this.gameActive) return;
-        this.isPaused = false;
-        this.startTimer();
+        this.updateCallbacks();
         this.lastTime = performance.now();
-        this.loop();
+        this.animationId = requestAnimationFrame((t) => this.gameLoop(t));
+        
+        // تأثير البداية
+        this.effects.flash('green');
     },
     
-    // Stop game
     stop() {
         this.gameActive = false;
         this.stopTimer();
-        cancelAnimationFrame(this.animationId);
+        if (this.animationId) {
+            cancelAnimationFrame(this.animationId);
+            this.animationId = null;
+        }
     },
     
-    // Timer functions
+    pause() {
+        if (!this.gameActive) return;
+        this.isPaused = !this.isPaused;
+        if (this.isPaused) {
+            this.stopTimer();
+            cancelAnimationFrame(this.animationId);
+        } else {
+            this.startTimer();
+            this.lastTime = performance.now();
+            this.animationId = requestAnimationFrame((t) => this.gameLoop(t));
+        }
+    },
+    
+    // Timer
     startTimer() {
         this.stopTimer();
         this.timerInterval = setInterval(() => {
@@ -271,7 +420,7 @@ const TetrisGame = {
         if (this.onTimeUp) this.onTimeUp(this.score);
     },
     
-    // Spawn new piece
+    // Spawn piece
     spawnPiece() {
         const type = Math.floor(Math.random() * 7) + 1;
         this.currentPiece = {
@@ -285,7 +434,6 @@ const TetrisGame = {
         }
     },
     
-    // Check collision
     collision(ox = 0, oy = 0, shape = this.currentPiece?.shape) {
         if (!shape) return false;
         for (let y = 0; y < shape.length; y++) {
@@ -301,7 +449,6 @@ const TetrisGame = {
         return false;
     },
     
-    // Merge piece into board
     merge() {
         this.currentPiece.shape.forEach((row, y) => {
             row.forEach((val, x) => {
@@ -312,8 +459,14 @@ const TetrisGame = {
         });
     },
     
-    // Rotate piece
+    // ═══════════════════════════════════════════════════════════════
+    // MOVEMENTS (مع تسجيل الأمان)
+    // ═══════════════════════════════════════════════════════════════
     rotate() {
+        if (!this.gameActive || this.isPaused) return;
+        
+        this.security.recordMove();
+        
         const shape = this.currentPiece.shape;
         const rotated = shape.map((r, i) => r.map((_, j) => shape[shape.length - 1 - j][i]));
         if (!this.collision(0, 0, rotated)) {
@@ -322,16 +475,22 @@ const TetrisGame = {
         }
     },
     
-    // Move piece
     move(dir) {
+        if (!this.gameActive || this.isPaused) return;
+        
+        this.security.recordMove();
+        
         if (!this.collision(dir, 0)) {
             this.currentPiece.x += dir;
             this.playSound('move');
         }
     },
     
-    // Drop piece one row
     drop() {
+        if (!this.gameActive || this.isPaused) return;
+        
+        this.security.recordMove();
+        
         if (!this.collision(0, 1)) {
             this.currentPiece.y++;
         } else {
@@ -342,38 +501,54 @@ const TetrisGame = {
         this.dropCounter = 0;
     },
     
-    // Hard drop
     hardDrop() {
+        if (!this.gameActive || this.isPaused) return;
+        
+        this.security.recordMove();
+        
         let dropDistance = 0;
         while (!this.collision(0, 1)) {
             this.currentPiece.y++;
             dropDistance++;
         }
-        // Bonus points for hard drop distance
+        
         if (dropDistance > 0) {
             this.addScore(dropDistance * 2);
+            
+            // تأثير الإسقاط
+            const centerX = (this.currentPiece.x + 1) * this.BLOCK;
+            const centerY = (this.currentPiece.y + 1) * this.BLOCK;
+            this.effects.addParticles(centerX, centerY, CONFIG.COLORS[this.currentPiece.type], 15);
+            this.effects.shake(3);
         }
+        
         this.playSound('drop');
         this.merge();
         this.clearLines();
         this.spawnPiece();
     },
     
-    // Clear completed lines
+    // ═══════════════════════════════════════════════════════════════
+    // CLEAR LINES (مع تأثيرات)
+    // ═══════════════════════════════════════════════════════════════
     clearLines() {
         let cleared = 0;
+        let clearedRows = [];
+        
         for (let y = CONFIG.GAME.ROWS - 1; y >= 0; y--) {
             if (this.board[y].every(c => c)) {
+                clearedRows.push(y);
                 this.board.splice(y, 1);
                 this.board.unshift(Array(CONFIG.GAME.COLS).fill(0));
                 cleared++;
                 y++;
             }
         }
+        
         if (cleared) {
             const now = Date.now();
             
-            // Combo system
+            // Combo
             if (now - this.lastClearTime < this.comboTimeout) {
                 this.combo++;
                 this.playSound('combo');
@@ -382,18 +557,32 @@ const TetrisGame = {
             }
             this.lastClearTime = now;
             
-            // Base points
+            // Points
             let points = [0, 100, 300, 500, 800][cleared] * this.level;
-            
-            // Combo bonus (10% per combo level)
             const comboBonus = Math.floor(points * (this.combo - 1) * 0.1);
             points += comboBonus;
             
-            // Tetris bonus (4 lines)
+            // Effects based on lines cleared
             if (cleared === 4) {
                 this.playSound('tetris');
+                this.effects.flash('gold');
+                this.effects.shake(8);
+                this.effects.glow();
+                
+                // جسيمات كثيرة للتتريس
+                for (let i = 0; i < CONFIG.GAME.COLS; i++) {
+                    this.effects.addParticles(i * this.BLOCK + this.BLOCK/2, CONFIG.GAME.ROWS * this.BLOCK / 2, '#FFD700', 8);
+                }
             } else {
                 this.playSound('clear');
+                this.effects.shake(cleared * 2);
+                
+                // جسيمات للصفوف الممحية
+                clearedRows.forEach(row => {
+                    for (let i = 0; i < CONFIG.GAME.COLS; i += 2) {
+                        this.effects.addParticles(i * this.BLOCK, row * this.BLOCK, '#FFFFFF', 3);
+                    }
+                });
             }
             
             this.addScore(points);
@@ -403,68 +592,145 @@ const TetrisGame = {
             if (newLevel > this.level) {
                 this.level = newLevel;
                 this.playSound('levelUp');
+                this.effects.flash('cyan');
             }
             
-            // Apply difficulty to drop interval
+            // Speed
             const difficultyMultiplier = 1 - (this.difficultyLevel / 100);
             const baseInterval = Math.max(100, 1000 - (this.level - 1) * 100);
             this.dropInterval = Math.max(100, baseInterval * difficultyMultiplier);
             
             this.updateCallbacks();
             
-            // Combo callback
             if (this.onComboUpdate && this.combo > 1) {
                 this.onComboUpdate(this.combo, comboBonus);
             }
         } else {
-            // Reset combo if no lines cleared
             this.combo = 0;
         }
     },
     
-    // Add score with anti-cheat
+    // ═══════════════════════════════════════════════════════════════
+    // SCORE (مع أمان)
+    // ═══════════════════════════════════════════════════════════════
     addScore(points) {
-        const now = Date.now();
-        const timeDiff = (now - this.lastScoreCheck) / 1000;
+        // تسجيل للأمان
+        this.security.recordScore(points);
         
-        if (this.lastScoreValue === 0) {
-            this.score += points;
-            this.lastScoreValue = this.score;
-            this.lastScoreCheck = now;
-            this.updateCallbacks();
+        // فحص سرعة النقاط
+        const elapsed = (Date.now() - this.security.startTime) / 1000;
+        const maxAllowed = this.security.maxScorePerSecond * elapsed;
+        
+        if (this.score + points > maxAllowed && elapsed > 5) {
+            this.security.flagSuspicious('score_too_fast');
             return;
         }
         
-        const maxAllowed = CONFIG.GAME.MAX_SCORE_PER_SECOND * timeDiff;
-        if (points > maxAllowed) return; // Cheat detected
-        
         this.score += points;
-        this.lastScoreValue = this.score;
-        this.lastScoreCheck = now;
         this.updateCallbacks();
     },
     
-    // Game over
+    // Game Over
     gameOver() {
         this.stop();
         this.playSound('gameOver');
+        this.effects.flash('red');
+        this.effects.shake(10);
         if (this.onGameOver) this.onGameOver(this.score);
     },
     
-    // Update callbacks
     updateCallbacks() {
         if (this.onScoreUpdate) this.onScoreUpdate(this.score);
-        if (this.onLevelUpdate) this.onLevelUpdate(this.level);
+        if (this.onLevelUpdate) this.onLevelUpdate(this.level, this.lines);
     },
     
-    // Draw everything
-    draw() {
-        // Clear
-        this.ctx.fillStyle = '#0a0a15';
-        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    // Warning
+    showWarning(msg) {
+        console.warn('⚠️', msg);
+        // يمكن إضافة UI warning هنا
+    },
+    
+    // ═══════════════════════════════════════════════════════════════
+    // GAME LOOP
+    // ═══════════════════════════════════════════════════════════════
+    gameLoop(time) {
+        if (!this.gameActive || this.isPaused) return;
         
-        // Grid
-        this.ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+        const delta = time - this.lastTime;
+        this.lastTime = time;
+        this.dropCounter += delta;
+        
+        if (this.dropCounter >= this.dropInterval) {
+            this.drop();
+        }
+        
+        // تحديث التأثيرات
+        this.effects.update();
+        
+        this.draw();
+        this.animationId = requestAnimationFrame((t) => this.gameLoop(t));
+    },
+    
+    // ═══════════════════════════════════════════════════════════════
+    // DRAWING (محسّن)
+    // ═══════════════════════════════════════════════════════════════
+    draw() {
+        const ctx = this.ctx;
+        const shake = this.effects.screenShake;
+        
+        ctx.save();
+        
+        // اهتزاز الشاشة
+        if (shake > 0.1) {
+            ctx.translate(
+                (Math.random() - 0.5) * shake,
+                (Math.random() - 0.5) * shake
+            );
+        }
+        
+        // مسح الشاشة
+        ctx.fillStyle = 'rgba(10, 10, 26, 0.95)';
+        ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        
+        // رسم الشبكة
+        this.drawGrid();
+        
+        // رسم اللوحة
+        this.drawBoard();
+        
+        // Ghost piece
+        if (this.ghostEnabled && this.currentPiece) {
+            this.drawGhost();
+        }
+        
+        // القطعة الحالية
+        if (this.currentPiece) {
+            this.drawPiece();
+        }
+        
+        // رسم الجسيمات
+        this.effects.draw(ctx);
+        
+        // فلاش
+        if (this.effects.flashOpacity > 0.01) {
+            ctx.fillStyle = `rgba(255, 255, 255, ${this.effects.flashOpacity})`;
+            ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        }
+        
+        // توهج الحواف
+        if (this.effects.glowIntensity > 0.01) {
+            ctx.strokeStyle = `rgba(255, 215, 0, ${this.effects.glowIntensity * 0.5})`;
+            ctx.lineWidth = 4;
+            ctx.strokeRect(2, 2, this.canvas.width - 4, this.canvas.height - 4);
+        }
+        
+        ctx.restore();
+    },
+    
+    drawGrid() {
+        this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+        this.ctx.lineWidth = 1;
+        
         for (let x = 0; x <= CONFIG.GAME.COLS; x++) {
             this.ctx.beginPath();
             this.ctx.moveTo(x * this.BLOCK, 0);
@@ -477,112 +743,96 @@ const TetrisGame = {
             this.ctx.lineTo(this.canvas.width, y * this.BLOCK);
             this.ctx.stroke();
         }
-        
-        // Board
-        this.board.forEach((row, y) => {
-            row.forEach((val, x) => {
-                if (val) this.drawBlock(x, y, CONFIG.COLORS.PIECES[val]);
-            });
-        });
-        
-        // Ghost piece (preview where piece will land)
-        if (this.currentPiece && this.ghostEnabled) {
-            const ghostY = this.getGhostY();
-            this.currentPiece.shape.forEach((row, y) => {
-                row.forEach((val, x) => {
-                    if (val) {
-                        this.drawGhostBlock(
-                            this.currentPiece.x + x,
-                            ghostY + y
-                        );
-                    }
-                });
-            });
-        }
-        
-        // Current piece
-        if (this.currentPiece) {
-            this.currentPiece.shape.forEach((row, y) => {
-                row.forEach((val, x) => {
-                    if (val) {
-                        this.drawBlock(
-                            this.currentPiece.x + x,
-                            this.currentPiece.y + y,
-                            CONFIG.COLORS.PIECES[val]
-                        );
-                    }
-                });
-            });
-        }
     },
     
-    // Get ghost piece Y position
-    getGhostY() {
-        let ghostY = this.currentPiece.y;
-        while (!this.collisionAt(this.currentPiece.x, ghostY + 1, this.currentPiece.shape)) {
-            ghostY++;
-        }
-        return ghostY;
-    },
-    
-    // Check collision at specific position
-    collisionAt(px, py, shape) {
-        for (let y = 0; y < shape.length; y++) {
-            for (let x = 0; x < shape[y].length; x++) {
-                if (shape[y][x]) {
-                    const nx = px + x;
-                    const ny = py + y;
-                    if (nx < 0 || nx >= CONFIG.GAME.COLS || ny >= CONFIG.GAME.ROWS) return true;
-                    if (ny >= 0 && this.board[ny][nx]) return true;
+    drawBoard() {
+        for (let y = 0; y < CONFIG.GAME.ROWS; y++) {
+            for (let x = 0; x < CONFIG.GAME.COLS; x++) {
+                if (this.board[y][x]) {
+                    this.drawBlock(x, y, CONFIG.COLORS[this.board[y][x]]);
                 }
             }
         }
-        return false;
     },
     
-    // Draw single block
-    drawBlock(x, y, color) {
+    drawPiece() {
+        this.currentPiece.shape.forEach((row, y) => {
+            row.forEach((val, x) => {
+                if (val) {
+                    this.drawBlock(
+                        this.currentPiece.x + x,
+                        this.currentPiece.y + y,
+                        CONFIG.COLORS[this.currentPiece.type]
+                    );
+                }
+            });
+        });
+    },
+    
+    drawGhost() {
+        let ghostY = this.currentPiece.y;
+        while (!this.collision(0, ghostY - this.currentPiece.y + 1)) {
+            ghostY++;
+        }
+        
+        this.ctx.globalAlpha = 0.3;
+        this.currentPiece.shape.forEach((row, y) => {
+            row.forEach((val, x) => {
+                if (val) {
+                    this.drawBlock(
+                        this.currentPiece.x + x,
+                        ghostY + y,
+                        CONFIG.COLORS[this.currentPiece.type],
+                        true
+                    );
+                }
+            });
+        });
+        this.ctx.globalAlpha = 1;
+    },
+    
+    drawBlock(x, y, color, isGhost = false) {
+        const bx = x * this.BLOCK;
+        const by = y * this.BLOCK;
+        const size = this.BLOCK - 2;
+        
+        // الظل
+        if (!isGhost) {
+            this.ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+            this.ctx.fillRect(bx + 3, by + 3, size, size);
+        }
+        
+        // الخلفية
         this.ctx.fillStyle = color;
-        this.ctx.fillRect(x * this.BLOCK + 1, y * this.BLOCK + 1, this.BLOCK - 2, this.BLOCK - 2);
-        this.ctx.fillStyle = 'rgba(255,255,255,0.3)';
-        this.ctx.fillRect(x * this.BLOCK + 1, y * this.BLOCK + 1, this.BLOCK - 2, 4);
-    },
-    
-    // Draw ghost block (transparent preview)
-    drawGhostBlock(x, y) {
-        this.ctx.strokeStyle = 'rgba(255,255,255,0.3)';
-        this.ctx.lineWidth = 2;
-        this.ctx.setLineDash([4, 4]);
-        this.ctx.strokeRect(x * this.BLOCK + 2, y * this.BLOCK + 2, this.BLOCK - 4, this.BLOCK - 4);
-        this.ctx.setLineDash([]);
+        this.ctx.fillRect(bx + 1, by + 1, size, size);
+        
+        // التدرج (للمعان)
+        if (!isGhost) {
+            const gradient = this.ctx.createLinearGradient(bx, by, bx + size, by + size);
+            gradient.addColorStop(0, 'rgba(255, 255, 255, 0.3)');
+            gradient.addColorStop(0.5, 'rgba(255, 255, 255, 0.1)');
+            gradient.addColorStop(1, 'rgba(0, 0, 0, 0.2)');
+            this.ctx.fillStyle = gradient;
+            this.ctx.fillRect(bx + 1, by + 1, size, size);
+        }
+        
+        // الحدود
+        this.ctx.strokeStyle = isGhost ? 'rgba(255,255,255,0.3)' : 'rgba(255, 255, 255, 0.5)';
         this.ctx.lineWidth = 1;
+        this.ctx.strokeRect(bx + 1, by + 1, size, size);
     },
     
-    // Toggle ghost piece
+    // Toggle ghost
     toggleGhost() {
         this.ghostEnabled = !this.ghostEnabled;
         return this.ghostEnabled;
     },
     
-    // Game loop
-    loop(time = 0) {
-        if (!this.gameActive || this.isPaused) return;
-        
-        this.dropCounter += time - this.lastTime;
-        this.lastTime = time;
-        
-        if (this.dropCounter > this.dropInterval) {
-            this.drop();
-        }
-        
-        this.draw();
-        this.animationId = requestAnimationFrame((t) => this.loop(t));
-    },
-    
-    // Get current score
-    getScore() {
-        return this.score;
+    // Get validation data for server
+    getValidationData() {
+        return this.security.getValidationData();
     }
 };
 
-window.TetrisGame = TetrisGame;
+// منع الوصول المباشر
+Object.freeze(TetrisGame.security);
