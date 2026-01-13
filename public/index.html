@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>جاري التحميل...</title>
+    <script>
+        // Redirect based on device
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) 
+            || (navigator.maxTouchPoints && navigator.maxTouchPoints > 2);
+        
+        if (isMobile) {
+            window.location.href = '/game.html';
+        } else {
+            window.location.href = '/desktop.html';
+        }
+    </script>
+    <style>
+        body {
+            background: #1a1a2e;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            font-family: 'Cairo', sans-serif;
+        }
+        .loader {
+            color: #ffd700;
+            font-size: 1.2rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="loader">جاري التحميل...</div>
+</body>
+</html>
