@@ -1050,8 +1050,8 @@
                     <span class="text">07748008688</span>
                     <span class="icon">📞</span>
                 </a>
-                <a href="mailto:mohamed@uudbv.com" class="contact-item">
-                    <span class="text">mohamed@uudbv.com</span>
+                <a href="/cdn-cgi/l/email-protection#066b696e676b63624673736264702865696b" class="contact-item">
+                    <span class="text"><span class="__cf_email__" data-cfemail="aec3c1c6cfc3cbcaeedbdbcaccd880cdc1c3">[email&#160;protected]</span></span>
                     <span class="icon">📧</span>
                 </a>
             </div>
@@ -1161,7 +1161,7 @@
         </div>
     </div>
 
-    <script src="/js/config.js"></script>
+    <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script src="/js/config.js"></script>
     <script src="/js/utils.js"></script>
     <script src="/js/api.js"></script>
     <script>
@@ -1760,7 +1760,8 @@
                 
                 try {
                     const res = await fetch(`/api/leaderboard?period=${this.currentLeaderboardPeriod}`);
-                    const data = await res.json();
+                    const result = await res.json();
+                    const data = result.leaderboard || result || [];
                     const container = document.getElementById('leaderboard-list');
                     
                     if (!data || data.length === 0) {
@@ -2564,11 +2565,4 @@
     <div class="themes-modal" id="themes-modal">
         <div class="themes-modal-content">
             <div class="themes-modal-header">
-                <h3>🎨 الثيمات</h3>
-                <button class="themes-modal-close" onclick="Game.closeThemes()">✕</button>
-            </div>
-            <div class="themes-modal-body" id="themes-container"></div>
-        </div>
-    </div>
-</body>
-</html>
+                <h3>🎨 الث�
