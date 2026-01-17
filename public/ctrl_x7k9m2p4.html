@@ -465,6 +465,10 @@
                         <span class="icon">📱</span>
                         <span class="label">WhatsApp</span>
                     </div>
+                    <div class="menu-item" data-page="chat">
+                        <span class="icon">💬</span>
+                        <span class="label">الدردشة</span>
+                    </div>
                     <div class="menu-item" data-page="reports">
                         <span class="icon">📊</span>
                         <span class="label">التقارير</span>
@@ -1189,6 +1193,96 @@
                                     <textarea class="form-control" id="wa-test-message" rows="3" placeholder="اكتب رسالتك هنا..."></textarea>
                                 </div>
                                 <button class="btn btn-success" onclick="sendTestWhatsApp()">📱 إرسال</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Chat Management Page -->
+                <div class="page" id="page-chat">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>💬 إدارة الدردشة</h3>
+                        </div>
+                        <div class="card-body">
+                            <!-- Toggle Chat -->
+                            <div class="setting-row" style="margin-bottom:25px;padding:20px;background:linear-gradient(135deg,rgba(102,126,234,0.1),rgba(118,75,162,0.1));border-radius:15px;">
+                                <div class="info">
+                                    <h4 style="color:#667eea;">💬 دردشة اللاعبين</h4>
+                                    <p>السماح للاعبين بالتواصل مع بعضهم داخل اللعبة</p>
+                                </div>
+                                <label class="switch">
+                                    <input type="checkbox" id="chat-enabled-toggle" onchange="ChatAdmin.toggle(this.checked)">
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                            
+                            <!-- Stats -->
+                            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:15px;margin-bottom:25px;">
+                                <div style="background:linear-gradient(135deg,#667eea,#764ba2);padding:20px;border-radius:12px;text-align:center;color:white;">
+                                    <div style="font-size:28px;font-weight:700;" id="chat-total-msg">0</div>
+                                    <div style="font-size:13px;opacity:0.9;">إجمالي الرسائل</div>
+                                </div>
+                                <div style="background:linear-gradient(135deg,#f093fb,#f5576c);padding:20px;border-radius:12px;text-align:center;color:white;">
+                                    <div style="font-size:28px;font-weight:700;" id="chat-banned-count">0</div>
+                                    <div style="font-size:13px;opacity:0.9;">محظورين</div>
+                                </div>
+                            </div>
+                            
+                            <!-- Tabs -->
+                            <div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;">
+                                <button class="btn btn-primary" onclick="ChatAdmin.showTab('messages')" id="chat-tab-msg">📝 الرسائل</button>
+                                <button class="btn btn-secondary" onclick="ChatAdmin.showTab('banned')" id="chat-tab-ban">🚫 المحظورين</button>
+                                <button class="btn btn-secondary" onclick="ChatAdmin.showTab('words')" id="chat-tab-words">🔤 كلمات محظورة</button>
+                            </div>
+                            
+                            <!-- Messages Tab -->
+                            <div id="chat-section-messages">
+                                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:15px;flex-wrap:wrap;gap:10px;">
+                                    <h4 style="margin:0;">آخر الرسائل</h4>
+                                    <button class="btn btn-danger btn-sm" onclick="ChatAdmin.cleanup()">🗑️ تنظيف القديمة</button>
+                                </div>
+                                <div style="overflow-x:auto;">
+                                    <table class="table">
+                                        <thead>
+                                            <tr><th>اللاعب</th><th>الهاتف</th><th>الرسالة</th><th>الوقت</th><th>إجراء</th></tr>
+                                        </thead>
+                                        <tbody id="chat-messages-body">
+                                            <tr><td colspan="5" style="text-align:center;">جاري التحميل...</td></tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            
+                            <!-- Banned Tab -->
+                            <div id="chat-section-banned" style="display:none;">
+                                <h4>المستخدمين المحظورين</h4>
+                                <div id="chat-banned-list" style="margin-bottom:20px;">
+                                    <p style="color:var(--text-muted);text-align:center;">لا يوجد محظورين</p>
+                                </div>
+                                <h4 style="margin-top:20px;">حظر مستخدم جديد</h4>
+                                <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                                    <input type="text" class="form-control" id="ban-phone" placeholder="رقم الهاتف" style="flex:1;min-width:120px;">
+                                    <input type="text" class="form-control" id="ban-reason" placeholder="السبب" style="flex:2;min-width:150px;">
+                                    <select class="form-control" id="ban-duration" style="width:100px;">
+                                        <option value="1">ساعة</option>
+                                        <option value="24">يوم</option>
+                                        <option value="168">أسبوع</option>
+                                        <option value="permanent">دائم</option>
+                                    </select>
+                                    <button class="btn btn-danger" onclick="ChatAdmin.ban()">حظر</button>
+                                </div>
+                            </div>
+                            
+                            <!-- Bad Words Tab -->
+                            <div id="chat-section-words" style="display:none;">
+                                <h4>الكلمات المحظورة</h4>
+                                <p style="color:var(--text-muted);font-size:13px;">الكلمات التي سيتم حظرها تلقائياً</p>
+                                <div id="chat-bad-words" style="display:flex;flex-wrap:wrap;gap:8px;margin:15px 0;"></div>
+                                <div style="display:flex;gap:10px;">
+                                    <input type="text" class="form-control" id="new-bad-word" placeholder="أضف كلمة..." style="flex:1;">
+                                    <button class="btn btn-danger" onclick="ChatAdmin.addWord()">إضافة</button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -2554,7 +2648,7 @@
                 'dashboard': 'dashboard', 'players': 'players', 'roulette': 'roulette',
                 'prizes': 'prizes', 'announcements': 'announcements', 'branches': 'branches',
                 'users': 'users', 'coupons': 'coupons', 'referrals': 'referrals', 'whatsapp': 'whatsapp',
-                'reports': 'reports', 'backup': 'backup', 'logs': 'logs',
+                'chat': 'الدردشة', 'reports': 'reports', 'backup': 'backup', 'logs': 'logs',
                 'settings-game': 'game', 'settings-points': 'points', 'settings-brand': 'brand',
                 'settings-social': 'social', 'settings-contact': 'contact', 'settings-contest': 'contest',
                 'settings-display': 'display', 'settings-provinces': 'blocked_provinces', 'settings-danger': 'danger_zone'
@@ -2574,6 +2668,7 @@
                 case 'coupons': loadCoupons(); break;
                 case 'referrals': loadReferrals(); break;
                 case 'whatsapp': loadWhatsAppSettings(); break;
+                case 'chat': ChatAdmin.load(); break;
                 case 'reports': loadReports(); break;
                 case 'analytics': loadAnalytics(); break;
                 case 'blocking': loadBlocking(); break;
@@ -5429,6 +5524,134 @@
         
         // Apply theme on load
         applyTheme();
+        
+        // ============== Chat Admin ==============
+        const ChatAdmin = {
+            async load() {
+                await Promise.all([this.loadStatus(), this.loadMessages(), this.loadBanned(), this.loadWords()]);
+            },
+            
+            async loadStatus() {
+                try {
+                    const r = await fetch('/api/admin/chat/status', {headers: {'Authorization': 'Bearer ' + localStorage.getItem('adminToken')}});
+                    const d = await r.json();
+                    document.getElementById('chat-enabled-toggle').checked = d.enabled;
+                    document.getElementById('chat-total-msg').textContent = d.totalMessages || 0;
+                    document.getElementById('chat-banned-count').textContent = d.bannedUsers || 0;
+                } catch(e) {}
+            },
+            
+            async toggle(enabled) {
+                try {
+                    await fetch('/api/admin/chat/toggle', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('adminToken')},
+                        body: JSON.stringify({enabled})
+                    });
+                    showToast(enabled ? '✅ تم تشغيل الدردشة' : '🔒 تم إيقاف الدردشة');
+                } catch(e) { showToast('خطأ', 'error'); }
+            },
+            
+            async loadMessages() {
+                try {
+                    const r = await fetch('/api/admin/chat/messages?limit=50', {headers: {'Authorization': 'Bearer ' + localStorage.getItem('adminToken')}});
+                    const d = await r.json();
+                    const tbody = document.getElementById('chat-messages-body');
+                    if (!d.messages || d.messages.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);">لا توجد رسائل</td></tr>';
+                        return;
+                    }
+                    tbody.innerHTML = d.messages.map(m => {
+                        const time = new Date(m.created_at).toLocaleString('ar-IQ');
+                        return `<tr style="${m.is_deleted ? 'opacity:0.5;' : ''}">
+                            <td>${m.player_name}</td>
+                            <td style="font-size:12px;">${m.player_phone}</td>
+                            <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${m.message}</td>
+                            <td style="font-size:11px;">${time}</td>
+                            <td>${!m.is_deleted ? `<button class="btn btn-danger btn-sm" onclick="ChatAdmin.deleteMsg(${m.id})">حذف</button> <button class="btn btn-warning btn-sm" onclick="ChatAdmin.quickBan('${m.player_phone}')">حظر</button>` : '—'}</td>
+                        </tr>`;
+                    }).join('');
+                } catch(e) {}
+            },
+            
+            async deleteMsg(id) {
+                if (!confirm('حذف؟')) return;
+                await fetch('/api/admin/chat/message/' + id, {method: 'DELETE', headers: {'Authorization': 'Bearer ' + localStorage.getItem('adminToken')}});
+                showToast('✅ تم'); this.loadMessages();
+            },
+            
+            async loadBanned() {
+                try {
+                    const r = await fetch('/api/admin/chat/banned', {headers: {'Authorization': 'Bearer ' + localStorage.getItem('adminToken')}});
+                    const d = await r.json();
+                    const c = document.getElementById('chat-banned-list');
+                    if (!d || d.length === 0) { c.innerHTML = '<p style="color:var(--text-muted);text-align:center;">لا يوجد محظورين</p>'; return; }
+                    c.innerHTML = d.map(b => `<div style="display:flex;justify-content:space-between;align-items:center;padding:12px;background:rgba(255,193,7,0.15);border-radius:8px;margin-bottom:8px;">
+                        <div><strong style="color:#ffc107;">${b.phone}</strong><br><small>${b.reason || '-'}</small></div>
+                        <button class="btn btn-success btn-sm" onclick="ChatAdmin.unban('${b.phone}')">رفع</button>
+                    </div>`).join('');
+                } catch(e) {}
+            },
+            
+            async ban() {
+                const phone = document.getElementById('ban-phone').value.trim();
+                if (!phone) return alert('أدخل الرقم');
+                await fetch('/api/admin/chat/ban', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('adminToken')},
+                    body: JSON.stringify({phone, reason: document.getElementById('ban-reason').value, duration: document.getElementById('ban-duration').value})
+                });
+                showToast('✅ تم الحظر');
+                document.getElementById('ban-phone').value = '';
+                this.loadBanned(); this.loadStatus();
+            },
+            
+            quickBan(phone) { document.getElementById('ban-phone').value = phone; this.showTab('banned'); },
+            
+            async unban(phone) {
+                await fetch('/api/admin/chat/ban/' + phone, {method: 'DELETE', headers: {'Authorization': 'Bearer ' + localStorage.getItem('adminToken')}});
+                showToast('✅ تم'); this.loadBanned(); this.loadStatus();
+            },
+            
+            async loadWords() {
+                try {
+                    const r = await fetch('/api/admin/chat/bad-words', {headers: {'Authorization': 'Bearer ' + localStorage.getItem('adminToken')}});
+                    const d = await r.json();
+                    const c = document.getElementById('chat-bad-words');
+                    if (!d || d.length === 0) { c.innerHTML = '<p style="color:var(--text-muted);">لا توجد</p>'; return; }
+                    c.innerHTML = d.map(w => `<span style="background:#dc3545;color:white;padding:5px 12px;border-radius:20px;font-size:13px;">${w.word} <span style="cursor:pointer;" onclick="ChatAdmin.removeWord('${w.word}')">✕</span></span>`).join('');
+                } catch(e) {}
+            },
+            
+            async addWord() {
+                const word = document.getElementById('new-bad-word').value.trim();
+                if (!word) return;
+                await fetch('/api/admin/chat/bad-word', {method: 'POST', headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('adminToken')}, body: JSON.stringify({word})});
+                document.getElementById('new-bad-word').value = '';
+                showToast('✅ تم'); this.loadWords();
+            },
+            
+            async removeWord(word) {
+                await fetch('/api/admin/chat/bad-word/' + encodeURIComponent(word), {method: 'DELETE', headers: {'Authorization': 'Bearer ' + localStorage.getItem('adminToken')}});
+                this.loadWords();
+            },
+            
+            async cleanup() {
+                if (!confirm('حذف الرسائل القديمة؟')) return;
+                const r = await fetch('/api/admin/chat/cleanup', {method: 'POST', headers: {'Authorization': 'Bearer ' + localStorage.getItem('adminToken')}});
+                const d = await r.json();
+                showToast('✅ حذف ' + (d.deleted||0)); this.loadMessages(); this.loadStatus();
+            },
+            
+            showTab(tab) {
+                document.getElementById('chat-section-messages').style.display = tab === 'messages' ? 'block' : 'none';
+                document.getElementById('chat-section-banned').style.display = tab === 'banned' ? 'block' : 'none';
+                document.getElementById('chat-section-words').style.display = tab === 'words' ? 'block' : 'none';
+                document.getElementById('chat-tab-msg').className = 'btn ' + (tab === 'messages' ? 'btn-primary' : 'btn-secondary');
+                document.getElementById('chat-tab-ban').className = 'btn ' + (tab === 'banned' ? 'btn-primary' : 'btn-secondary');
+                document.getElementById('chat-tab-words').className = 'btn ' + (tab === 'words' ? 'btn-primary' : 'btn-secondary');
+            }
+        };
     </script>
 </body>
 </html>

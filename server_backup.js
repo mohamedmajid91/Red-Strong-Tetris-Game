@@ -250,12 +250,6 @@ const initDB = async () => {
             )
         `);
 
-        // إضافة إعداد الدردشة الافتراضي
-        await pool.query(`
-            INSERT INTO settings (key, value) VALUES ('chat_enabled', 'true') 
-            ON CONFLICT (key) DO NOTHING
-        `);
-
         // Announcements table
         await pool.query(`
             CREATE TABLE IF NOT EXISTS announcements (
@@ -811,19 +805,6 @@ const getSetting = async (key, defaultValue = '') => {
         return result.rows[0]?.value || defaultValue;
     } catch (err) {
         return defaultValue;
-    }
-};
-
-const setSetting = async (key, value) => {
-    try {
-        await pool.query(
-            'INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = $2',
-            [key, value]
-        );
-        return true;
-    } catch (err) {
-        console.error('setSetting error:', err);
-        return false;
     }
 };
 
@@ -5805,7 +5786,7 @@ app.get('/api/chat/messages', async (req, res) => {
         const after = parseInt(req.query.after) || 0;
         
         const result = await pool.query(
-            'SELECT id, player_phone, player_name, message, created_at FROM chat_messages WHERE is_deleted = false AND id > $1 ORDER BY created_at DESC LIMIT $2',
+            'SELECT id, player_name, message, created_at FROM chat_messages WHERE is_deleted = false AND id > $1 ORDER BY created_at DESC LIMIT $2',
             [after, limit]
         );
         res.json({ enabled: true, messages: result.rows.reverse() });
@@ -5836,7 +5817,7 @@ app.post('/api/chat/send', chatLimiter, async (req, res) => {
         if (badWordCheck.found) return res.status(400).json({ error: 'رسالة غير مسموحة' });
         
         const result = await pool.query(
-            'INSERT INTO chat_messages (player_phone, player_name, message) VALUES ($1, $2, $3) RETURNING id, player_phone, player_name, message, created_at',
+            'INSERT INTO chat_messages (player_phone, player_name, message) VALUES ($1, $2, $3) RETURNING id, player_name, message, created_at',
             [phone, name.substring(0, 50), cleanMessage]
         );
         res.json({ success: true, message: result.rows[0], remaining: rateCheck.remaining });

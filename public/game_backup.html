@@ -916,8 +916,8 @@
         .chat-fab.has-new { animation: chatPulse 1s infinite; }
         .chat-fab .badge { position: absolute; top: -5px; right: -5px; background: var(--accent-red); color: white; font-size: 11px; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; }
         @keyframes chatPulse { 0%, 100% { box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4); } 50% { box-shadow: 0 4px 25px rgba(102, 126, 234, 0.8); } }
-        .chat-window { position: fixed; bottom: 70px; left: 15px; width: 280px; max-width: calc(100vw - 30px); height: 350px; max-height: 50vh; background: rgba(255, 255, 255, 0.98); border-radius: 15px; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3); z-index: 999; display: none; flex-direction: column; overflow: hidden; direction: rtl; }
-        .chat-window.open { display: flex; }
+        .chat-window { position: fixed; bottom: 70px; left: 15px; width: 280px; max-width: calc(100vw - 30px); height: 350px; max-height: 50vh; background: rgba(255, 255, 255, 0.98); border-radius: 15px; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3); z-index: 999; display: flex; flex-direction: column; overflow: hidden; transform: scale(0) translateY(20px); transform-origin: bottom left; opacity: 0; transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); direction: rtl; }
+        .chat-window.open { transform: scale(1) translateY(0); opacity: 1; }
         .chat-header { background: linear-gradient(135deg, #667eea, #764ba2); color: white; padding: 12px; display: flex; justify-content: space-between; align-items: center; }
         .chat-header h3 { margin: 0; font-size: 14px; font-family: 'Cairo', sans-serif; }
         .chat-close { background: rgba(255,255,255,0.2); border: none; color: white; width: 28px; height: 28px; border-radius: 50%; cursor: pointer; font-size: 14px; }
@@ -926,9 +926,9 @@
         .chat-message.me { align-self: flex-start; }
         .chat-message.other { align-self: flex-end; }
         .chat-message .sender { font-size: 10px; color: #888; margin-bottom: 2px; padding: 0 8px; font-family: 'Cairo', sans-serif; }
-        .chat-message .msg-bubble { padding: 8px 12px; border-radius: 15px; font-size: 13px; line-height: 1.4; word-break: break-word; font-family: 'Cairo', sans-serif; }
-        .chat-message.me .msg-bubble { background: linear-gradient(135deg, #667eea, #764ba2); color: white; border-bottom-right-radius: 5px; }
-        .chat-message.other .msg-bubble { background: white; color: #333; border-bottom-left-radius: 5px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .chat-message .bubble { padding: 8px 12px; border-radius: 15px; font-size: 13px; line-height: 1.4; word-break: break-word; font-family: 'Cairo', sans-serif; }
+        .chat-message.me .bubble { background: linear-gradient(135deg, #667eea, #764ba2); color: white; border-bottom-right-radius: 5px; }
+        .chat-message.other .bubble { background: white; color: #333; border-bottom-left-radius: 5px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
         .chat-message .time { font-size: 9px; color: #aaa; margin-top: 2px; padding: 0 8px; }
         .chat-input-area { padding: 8px 10px; background: white; border-top: 1px solid #eee; display: flex; gap: 8px; direction: rtl; }
         .chat-input { flex: 1; border: 2px solid #eee; border-radius: 20px; padding: 8px 12px; font-size: 13px; font-family: 'Cairo', sans-serif; outline: none; direction: rtl; text-align: right; }
@@ -2627,13 +2627,13 @@
         
         init() {
             const input = document.getElementById('chat-input');
-            if (input) {
-                input.addEventListener('keypress', e => {
-                    if (e.key === 'Enter') { e.preventDefault(); this.send(); }
-                });
-            }
+            input.addEventListener('keypress', e => {
+                if (e.key === 'Enter') { e.preventDefault(); this.send(); }
+            });
+            // تحميل كل الرسائل أول مرة
             this.loadAll();
-            this.interval = setInterval(() => this.checkAndLoad(), 3000);
+            // تحديث كل 3 ثواني
+            this.interval = setInterval(() => this.loadNew(), 3000);
         },
         
         toggle() {
@@ -2644,31 +2644,30 @@
                 this.unread = 0;
                 this.updateBadge();
                 this.scrollBottom();
-                // إعادة فحص حالة الدردشة عند الفتح
-                if (!this.isEnabled) this.loadAll();
-                setTimeout(() => document.getElementById('chat-input')?.focus(), 100);
+                setTimeout(() => document.getElementById('chat-input').focus(), 100);
             }
         },
         
-        async checkAndLoad() {
-            // حتى لو معطلة، نفحص كل فترة إذا رجعت
+        async loadAll() {
             try {
-                const r = await fetch('/api/chat/messages?after=' + this.lastId + '&limit=20');
+                const r = await fetch('/api/chat/messages?limit=50');
                 const d = await r.json();
-                
-                if (!d.enabled) {
-                    if (this.isEnabled) this.showDisabled();
-                    return;
+                if (!d.enabled) { this.showDisabled(); return; }
+                this.isEnabled = true;
+                this.messages = d.messages || [];
+                if (this.messages.length > 0) {
+                    this.lastId = Math.max(...this.messages.map(m => m.id));
                 }
-                
-                // لو كانت معطلة ورجعت
-                if (!this.isEnabled) {
-                    this.isEnabled = true;
-                    this.showEnabled();
-                    this.loadAll();
-                    return;
-                }
-                
+                this.render();
+            } catch (e) { console.log('Chat load error'); }
+        },
+        
+        async loadNew() {
+            if (!this.isEnabled) return;
+            try {
+                const r = await fetch('/api/chat/messages?after=' + this.lastId);
+                const d = await r.json();
+                if (!d.enabled) { this.showDisabled(); return; }
                 if (d.messages && d.messages.length > 0) {
                     const newMsgs = d.messages.filter(m => m.id > this.lastId);
                     if (newMsgs.length > 0) {
@@ -2683,21 +2682,6 @@
                     }
                 }
             } catch (e) {}
-        },
-        
-        async loadAll() {
-            try {
-                const r = await fetch('/api/chat/messages?limit=50');
-                const d = await r.json();
-                if (!d.enabled) { this.showDisabled(); return; }
-                this.isEnabled = true;
-                this.showEnabled();
-                this.messages = d.messages || [];
-                if (this.messages.length > 0) {
-                    this.lastId = Math.max(...this.messages.map(m => m.id));
-                }
-                this.render();
-            } catch (e) { console.log('Chat load error:', e); }
         },
         
         render() {
@@ -2715,7 +2699,7 @@
                 const t = new Date(m.created_at).toLocaleTimeString('ar-IQ', {hour:'2-digit', minute:'2-digit'});
                 return `<div class="chat-message ${isMe ? 'me' : 'other'}">
                     ${!isMe ? '<span class="sender">' + this.esc(m.player_name) + '</span>' : ''}
-                    <div class="msg-bubble">${this.esc(m.message)}</div>
+                    <div class="bubble">${this.esc(m.message)}</div>
                     <span class="time">${t}</span>
                 </div>`;
             }).join('');
@@ -2748,12 +2732,13 @@
                 
                 if (d.success) {
                     input.value = '';
+                    // إضافة الرسالة مباشرة للعرض
                     if (d.message) {
                         this.messages.push(d.message);
                         this.lastId = d.message.id;
                         this.render();
                     } else {
-                        this.checkAndLoad();
+                        this.loadNew();
                     }
                 } else {
                     this.showError(d.error || 'خطأ');
@@ -2780,12 +2765,7 @@
             this.isEnabled = false;
             document.getElementById('chat-messages').innerHTML = '<div class="chat-disabled"><span class="icon">🔒</span><p>الدردشة معطلة حالياً</p></div>';
             document.getElementById('chat-input-area').style.display = 'none';
-            document.getElementById('chat-fab').style.opacity = '0.6';
-        },
-        
-        showEnabled() {
-            document.getElementById('chat-input-area').style.display = 'flex';
-            document.getElementById('chat-fab').style.opacity = '1';
+            document.getElementById('chat-fab').style.opacity = '0.5';
         },
         
         updateBadge() {
