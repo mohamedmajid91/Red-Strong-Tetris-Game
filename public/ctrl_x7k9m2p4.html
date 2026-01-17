@@ -1703,6 +1703,18 @@
                             <button class="btn btn-danger" onclick="confirmResetAll()">🗑️ حذف جميع اللاعبين</button>
                             <button class="btn btn-danger" onclick="confirmResetScores()">📊 إعادة تعيين النقاط</button>
                         </div>
+                        
+                        <hr style="margin:30px 0;border-color:rgba(255,0,0,0.2);">
+                        
+                        <h4>🔄 تنظيف عام (إعادة ضبط المصنع)</h4>
+                        <p style="color:#e74c3c;margin-bottom:15px;">⚠️ سيتم حذف جميع البيانات: اللاعبين، النقاط، الألعاب، الرسائل، الفائزين!</p>
+                        <div class="form-group">
+                            <label>كلمة مرور التنظيف</label>
+                            <input type="password" id="factory-reset-password" class="form-control" placeholder="أدخل كلمة المرور السرية">
+                        </div>
+                        <button class="btn btn-danger" onclick="confirmFactoryReset()" style="background:#7f0000;margin-top:10px;">
+                            ☢️ تنظيف عام - إعادة ضبط المصنع
+                        </button>
                     </div>
                 </div>
 
@@ -4093,6 +4105,49 @@
             showConfirm('إعادة النقاط', 'سيتم إعادة نقاط الجميع لصفر؟', async () => {
                 await fetch('/api/admin/reset-scores', { method: 'POST', headers: { 'Authorization': 'Bearer ' + token } });
                 showToast('تم', 'success'); loadDashboard();
+            });
+        }
+
+        // ============== Factory Reset ==============
+        async function confirmFactoryReset() {
+            const password = document.getElementById('factory-reset-password').value;
+            if (!password) {
+                showToast('أدخل كلمة المرور', 'error');
+                return;
+            }
+            
+            showConfirm('⚠️ تنظيف عام', 'هل أنت متأكد؟ سيتم حذف جميع البيانات نهائياً!', async () => {
+                try {
+                    const res = await fetch('/api/admin/factory-reset', {
+                        method: 'POST',
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'Authorization': 'Bearer ' + token 
+                        },
+                        body: JSON.stringify({ password })
+                    });
+                    const data = await res.json();
+                    
+                    if (data.success) {
+                        showToast('✅ تم التنظيف العام بنجاح', 'success');
+                        document.getElementById('factory-reset-password').value = '';
+                        // عرض تفاصيل الحذف
+                        setTimeout(() => {
+                            const msg = `تم حذف:
+اللاعبين: ${data.deleted.players}
+النتائج: ${data.deleted.scores}
+الألعاب: ${data.deleted.games}
+الرسائل: ${data.deleted.messages}
+الفائزين: ${data.deleted.winners}`;
+                            alert(msg);
+                            loadDashboard();
+                        }, 500);
+                    } else {
+                        showToast(data.error || 'خطأ', 'error');
+                    }
+                } catch (err) {
+                    showToast('خطأ في الاتصال', 'error');
+                }
             });
         }
 

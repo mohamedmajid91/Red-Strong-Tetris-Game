@@ -5996,6 +5996,90 @@ app.post('/api/admin/chat/cleanup', authenticateToken, async (req, res) => {
     } catch (err) { res.status(500).json({ error: 'خطأ' }); }
 });
 
+// ============== Factory Reset (تنظيف عام) ==============
+app.post('/api/admin/factory-reset', authenticateToken, async (req, res) => {
+    try {
+        const { password } = req.body;
+        const RESET_PASSWORD = '195419912018';
+        
+        if (password !== RESET_PASSWORD) {
+            return res.status(403).json({ error: 'كلمة المرور غير صحيحة' });
+        }
+        
+        // إعادة كل شي للـ default
+        const results = {
+            players: 0,
+            scores: 0,
+            games: 0,
+            messages: 0,
+            prizes: 0,
+            winners: 0,
+            referrals: 0,
+            achievements: 0,
+            challenges: 0
+        };
+        
+        // حذف بيانات اللاعبين
+        const p1 = await pool.query('DELETE FROM players RETURNING id');
+        results.players = p1.rowCount;
+        
+        // حذف النتائج
+        const p2 = await pool.query('DELETE FROM scores RETURNING id');
+        results.scores = p2.rowCount;
+        
+        // حذف الألعاب
+        const p3 = await pool.query('DELETE FROM games RETURNING id');
+        results.games = p3.rowCount;
+        
+        // حذف رسائل الدردشة
+        const p4 = await pool.query('DELETE FROM chat_messages RETURNING id');
+        results.messages = p4.rowCount;
+        
+        // حذف المحظورين من الدردشة
+        await pool.query('DELETE FROM chat_banned_users');
+        
+        // حذف الإبلاغات
+        await pool.query('DELETE FROM chat_reports');
+        
+        // حذف الفائزين
+        const p5 = await pool.query('DELETE FROM winners RETURNING id');
+        results.winners = p5.rowCount;
+        
+        // حذف الإحالات
+        try {
+            const p6 = await pool.query('DELETE FROM referrals RETURNING id');
+            results.referrals = p6.rowCount;
+        } catch(e) {}
+        
+        // حذف الإنجازات
+        try {
+            const p7 = await pool.query('DELETE FROM player_achievements RETURNING id');
+            results.achievements = p7.rowCount;
+        } catch(e) {}
+        
+        // حذف تقدم التحديات
+        try {
+            const p8 = await pool.query('DELETE FROM challenge_progress RETURNING id');
+            results.challenges = p8.rowCount;
+        } catch(e) {}
+        
+        // إعادة الإعدادات للـ default
+        await pool.query("UPDATE settings SET value = 'true' WHERE key = 'chat_enabled'");
+        await pool.query("UPDATE settings SET value = 'true' WHERE key = 'game_enabled'");
+        
+        await logActivity(pool, 'admin', '🔄 تنظيف عام - إعادة ضبط المصنع');
+        
+        res.json({ 
+            success: true, 
+            message: '✅ تم إعادة ضبط المصنع بنجاح',
+            deleted: results
+        });
+    } catch (err) {
+        console.error('Factory reset error:', err);
+        res.status(500).json({ error: 'خطأ في التنظيف' });
+    }
+});
+
 // Load bad words on startup
 setTimeout(() => ChatSecurity.loadBadWords(), 3000);
 
