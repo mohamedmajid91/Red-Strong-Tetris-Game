@@ -1,7 +1,7 @@
 {
   "name": "tetris-game",
-  "version": "58.0.0",
-  "description": "Red Strong Tetris Game - Ultimate Edition",
+  "version": "68.0.0",
+  "description": "Red Strong Tetris Game - Ultimate Edition with Chat System",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

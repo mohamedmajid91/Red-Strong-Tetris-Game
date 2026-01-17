@@ -224,6 +224,9 @@ const initDB = async () => {
                 player_name VARCHAR(100) NOT NULL,
                 message TEXT NOT NULL,
                 message_type VARCHAR(20) DEFAULT 'text',
+                reply_to_id INTEGER,
+                reply_to_name VARCHAR(100),
+                reply_to_text VARCHAR(100),
                 is_deleted BOOLEAN DEFAULT false,
                 deleted_by VARCHAR(50),
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -248,6 +251,27 @@ const initDB = async () => {
                 added_by VARCHAR(50),
                 added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
+        `);
+
+        // جدول الإبلاغات
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS chat_reports (
+                id SERIAL PRIMARY KEY,
+                message_id INTEGER NOT NULL,
+                reporter_phone VARCHAR(20),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(message_id, reporter_phone)
+            )
+        `);
+
+        // إضافة أعمدة reply للجدول القديم
+        await pool.query(`
+            DO $$ BEGIN
+                ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS reply_to_id INTEGER;
+                ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS reply_to_name VARCHAR(100);
+                ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS reply_to_text VARCHAR(100);
+            EXCEPTION WHEN OTHERS THEN NULL;
+            END $$;
         `);
 
         // إضافة إعداد الدردشة الافتراضي
@@ -5805,7 +5829,7 @@ app.get('/api/chat/messages', async (req, res) => {
         const after = parseInt(req.query.after) || 0;
         
         const result = await pool.query(
-            'SELECT id, player_phone, player_name, message, created_at FROM chat_messages WHERE is_deleted = false AND id > $1 ORDER BY created_at DESC LIMIT $2',
+            'SELECT id, player_phone, player_name, message, reply_to_id, reply_to_name, reply_to_text, created_at FROM chat_messages WHERE is_deleted = false AND id > $1 ORDER BY created_at DESC LIMIT $2',
             [after, limit]
         );
         res.json({ enabled: true, messages: result.rows.reverse() });
@@ -5820,7 +5844,7 @@ app.post('/api/chat/send', chatLimiter, async (req, res) => {
         const chatEnabled = await getSetting('chat_enabled', 'true');
         if (chatEnabled !== 'true') return res.status(403).json({ error: 'الدردشة معطلة' });
         
-        const { phone, name, message } = req.body;
+        const { phone, name, message, reply_to_id, reply_to_name, reply_to_text } = req.body;
         if (!phone || !name || !message) return res.status(400).json({ error: 'بيانات ناقصة' });
         
         const banned = await ChatSecurity.isUserBanned(phone);
@@ -5835,11 +5859,33 @@ app.post('/api/chat/send', chatLimiter, async (req, res) => {
         const badWordCheck = ChatSecurity.containsBadWords(cleanMessage);
         if (badWordCheck.found) return res.status(400).json({ error: 'رسالة غير مسموحة' });
         
+        // إنشاء اسم فريد (الاسم + آخر 4 أرقام من الهاتف)
+        const uniqueName = name.substring(0, 20) + '#' + phone.slice(-4);
+        
         const result = await pool.query(
-            'INSERT INTO chat_messages (player_phone, player_name, message) VALUES ($1, $2, $3) RETURNING id, player_phone, player_name, message, created_at',
-            [phone, name.substring(0, 50), cleanMessage]
+            `INSERT INTO chat_messages (player_phone, player_name, message, reply_to_id, reply_to_name, reply_to_text) 
+             VALUES ($1, $2, $3, $4, $5, $6) 
+             RETURNING id, player_phone, player_name, message, reply_to_id, reply_to_name, reply_to_text, created_at`,
+            [phone, uniqueName, cleanMessage, reply_to_id || null, reply_to_name || null, reply_to_text?.substring(0, 50) || null]
         );
         res.json({ success: true, message: result.rows[0], remaining: rateCheck.remaining });
+    } catch (err) {
+        console.error('Chat send error:', err);
+        res.status(500).json({ error: 'خطأ' });
+    }
+});
+
+// Report message
+app.post('/api/chat/report', async (req, res) => {
+    try {
+        const { message_id, reporter_phone } = req.body;
+        if (!message_id) return res.status(400).json({ error: 'بيانات ناقصة' });
+        
+        await pool.query(
+            `INSERT INTO chat_reports (message_id, reporter_phone) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+            [message_id, reporter_phone || 'anonymous']
+        );
+        res.json({ success: true });
     } catch (err) {
         res.status(500).json({ error: 'خطأ' });
     }
