@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>نظام استلام الجوائز - الفروع</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #1a1a2e;
+            --secondary: #16213e;
+            --accent: #e94560;
+            --gold: #ffd700;
+            --success: #00d9a5;
+            --danger: #dc3545;
+            --text: #eaeaea;
+            --text-muted: #8892b0;
+            --glass: rgba(255,255,255,0.05);
+            --glass-border: rgba(255,255,255,0.1);
+        }
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family: 'Cairo', sans-serif; background: var(--primary); min-height: 100vh; color: var(--text); }
+        
+        .container { max-width: 500px; margin: 0 auto; padding: 20px; }
+        
+        .card { background: var(--glass); border: 1px solid var(--glass-border); border-radius: 20px; padding: 30px; margin-bottom: 20px; }
+        .card h2 { text-align: center; margin-bottom: 20px; background: linear-gradient(135deg, var(--gold), var(--accent)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 6px; font-weight: 600; }
+        .form-input { width: 100%; padding: 12px 15px; border: 2px solid var(--glass-border); border-radius: 10px; background: rgba(0,0,0,0.3); color: var(--text); font-family: inherit; font-size: 1rem; }
+        .form-input:focus { outline: none; border-color: var(--accent); }
+        .form-input.large { font-size: 1.5rem; text-align: center; letter-spacing: 3px; text-transform: uppercase; }
+        
+        .btn { width: 100%; padding: 14px; border: none; border-radius: 10px; font-family: inherit; font-size: 1rem; font-weight: 700; cursor: pointer; transition: all 0.3s; }
+        .btn.primary { background: linear-gradient(135deg, var(--accent), #ff6b6b); color: white; }
+        .btn.success { background: var(--success); color: var(--primary); }
+        .btn.secondary { background: var(--glass); color: var(--text); border: 1px solid var(--glass-border); margin-top: 10px; }
+        .btn:hover { transform: translateY(-2px); }
+        
+        .screen { display: none; }
+        .screen.active { display: block; }
+        
+        .header { background: var(--glass); padding: 15px; text-align: center; border-bottom: 1px solid var(--glass-border); margin-bottom: 20px; border-radius: 15px; }
+        .header h3 { color: var(--gold); font-size: 1rem; }
+        .header p { color: var(--text-muted); font-size: 0.85rem; }
+        
+        .winner-card { background: linear-gradient(135deg, rgba(255,215,0,0.1), rgba(255,215,0,0.05)); border: 2px solid var(--gold); border-radius: 15px; padding: 20px; text-align: center; margin: 20px 0; }
+        .winner-card .name { font-size: 1.5rem; font-weight: 700; color: var(--gold); }
+        .winner-card .info { color: var(--text-muted); margin: 5px 0; }
+        .winner-card .code { background: var(--gold); color: var(--primary); padding: 8px 15px; border-radius: 8px; font-weight: 900; display: inline-block; margin: 10px 0; }
+        
+        .error-box { background: rgba(220,53,69,0.1); border: 1px solid var(--danger); border-radius: 10px; padding: 15px; text-align: center; color: var(--danger); margin: 20px 0; }
+        .success-box { background: rgba(0,217,165,0.1); border: 1px solid var(--success); border-radius: 10px; padding: 20px; text-align: center; margin: 20px 0; }
+        .success-box .icon { font-size: 50px; margin-bottom: 10px; }
+        .success-box h3 { color: var(--success); }
+        
+        .history-item { background: rgba(0,0,0,0.2); border-radius: 10px; padding: 12px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+        .history-item .info h4 { font-size: 0.95rem; margin-bottom: 3px; }
+        .history-item .info p { font-size: 0.8rem; color: var(--text-muted); }
+        .history-item .time { font-size: 0.75rem; color: var(--text-muted); text-align: left; }
+        
+        .tabs { display: flex; gap: 10px; margin-bottom: 20px; }
+        .tab { flex: 1; padding: 12px; border: none; border-radius: 10px; background: var(--glass); color: var(--text-muted); font-family: inherit; font-weight: 600; cursor: pointer; }
+        .tab.active { background: var(--accent); color: white; }
+        
+        .logout-btn { position: fixed; top: 15px; left: 15px; background: var(--danger); color: white; border: none; padding: 8px 15px; border-radius: 8px; font-family: inherit; cursor: pointer; }
+        
+        .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(100px); background: var(--success); color: var(--primary); padding: 12px 25px; border-radius: 10px; font-weight: 600; opacity: 0; transition: all 0.3s; z-index: 1000; }
+        .toast.error { background: var(--danger); color: white; }
+        .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+    </style>
+</head>
+<body>
+    <!-- Login Screen -->
+    <div class="screen active" id="login-screen">
+        <div class="container">
+            <div class="card">
+                <h2>🏪 دخول الفرع</h2>
+                <form onsubmit="login(event)">
+                    <div class="form-group">
+                        <label>رقم هاتف الفرع</label>
+                        <input type="tel" class="form-input" id="branch-phone" placeholder="07XX XXX XXXX" required>
+                    </div>
+                    <div class="form-group">
+                        <label>كلمة المرور</label>
+                        <input type="password" class="form-input" id="branch-password" required>
+                    </div>
+                    <button type="submit" class="btn primary">دخول</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Screen -->
+    <div class="screen" id="main-screen">
+        <button class="logout-btn" onclick="logout()">خروج</button>
+        
+        <div class="container">
+            <div class="header">
+                <h3 id="branch-name">اسم الفرع</h3>
+                <p id="branch-location">الموقع</p>
+            </div>
+            
+            <div class="tabs">
+                <button class="tab active" onclick="showTab('verify', this)">🎁 تسليم جائزة</button>
+                <button class="tab" onclick="showTab('history', this)">📋 السجل</button>
+            </div>
+            
+            <!-- Verify Tab -->
+            <div class="tab-content active" id="tab-verify">
+                <div class="card">
+                    <h2>🔍 أدخل كود الجائزة</h2>
+                    <form onsubmit="verifyCode(event)">
+                        <div class="form-group">
+                            <input type="text" class="form-input large" id="prize-code" placeholder="XXXX-XXXX" maxlength="9" required>
+                        </div>
+                        <button type="submit" class="btn primary">تحقق من الكود</button>
+                    </form>
+                </div>
+                
+                <!-- Winner Info -->
+                <div id="winner-info" style="display:none;">
+                    <div class="winner-card">
+                        <div class="name" id="winner-name">اسم الفائز</div>
+                        <div class="info">📱 <span id="winner-phone">07XX XXX XXXX</span></div>
+                        <div class="info">📍 <span id="winner-province">المحافظة</span></div>
+                        <div class="code" id="winner-code">XXXX-XXXX</div>
+                        <div class="info" style="font-size:0.8rem;">🗓️ فاز بتاريخ: <span id="winner-date">--</span></div>
+                    </div>
+                    
+                    <div class="card">
+                        <div class="form-group">
+                            <label>اسم الموظف المسلّم</label>
+                            <input type="text" class="form-input" id="employee-name" placeholder="اسمك" required>
+                        </div>
+                        <div class="form-group">
+                            <label>ملاحظات (اختياري)</label>
+                            <input type="text" class="form-input" id="claim-notes" placeholder="أي ملاحظات...">
+                        </div>
+                        <button class="btn success" onclick="claimPrize()">✅ تأكيد التسليم</button>
+                        <button class="btn secondary" onclick="cancelClaim()">إلغاء</button>
+                    </div>
+                </div>
+                
+                <!-- Error -->
+                <div id="error-box" class="error-box" style="display:none;">
+                    <p id="error-msg">الكود غير صحيح</p>
+                </div>
+                
+                <!-- Success -->
+                <div id="success-box" class="success-box" style="display:none;">
+                    <div class="icon">✅</div>
+                    <h3>تم التسليم بنجاح!</h3>
+                    <p style="color:var(--text-muted);margin-top:10px;">الجائزة سُلّمت للفائز</p>
+                    <button class="btn primary" style="margin-top:20px;" onclick="resetForm()">تسليم جائزة أخرى</button>
+                </div>
+            </div>
+            
+            <!-- History Tab -->
+            <div class="tab-content" id="tab-history" style="display:none;">
+                <div class="card">
+                    <h2>📋 سجل التسليمات</h2>
+                    <div id="history-list">
+                        <p style="text-align:center;color:var(--text-muted);">جاري التحميل...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        let branchToken = localStorage.getItem('branchToken');
+        let branchInfo = JSON.parse(localStorage.getItem('branchInfo') || '{}');
+        let currentWinner = null;
+
+        // Check if logged in
+        if (branchToken && branchInfo.name) {
+            showMainScreen();
+        }
+
+        async function login(e) {
+            e.preventDefault();
+            const phone = document.getElementById('branch-phone').value.replace(/\D/g, '');
+            const password = document.getElementById('branch-password').value;
+            
+            try {
+                const res = await fetch('/api/branch/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ phone, password })
+                });
+                const data = await res.json();
+                
+                if (data.success) {
+                    branchToken = data.token;
+                    branchInfo = data.branch;
+                    localStorage.setItem('branchToken', branchToken);
+                    localStorage.setItem('branchInfo', JSON.stringify(branchInfo));
+                    showMainScreen();
+                } else {
+                    showToast(data.error || 'بيانات خاطئة', true);
+                }
+            } catch (err) {
+                showToast('خطأ في الاتصال', true);
+            }
+        }
+
+        function showMainScreen() {
+            document.getElementById('login-screen').classList.remove('active');
+            document.getElementById('main-screen').classList.add('active');
+            document.getElementById('branch-name').textContent = branchInfo.name;
+            document.getElementById('branch-location').textContent = branchInfo.location || '';
+        }
+
+        function logout() {
+            branchToken = null;
+            branchInfo = {};
+            localStorage.removeItem('branchToken');
+            localStorage.removeItem('branchInfo');
+            location.reload();
+        }
+
+        function showTab(tab, btn) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
+            btn.classList.add('active');
+            document.getElementById('tab-' + tab).style.display = 'block';
+            if (tab === 'history') loadHistory();
+        }
+
+        async function verifyCode(e) {
+            e.preventDefault();
+            const code = document.getElementById('prize-code').value.toUpperCase();
+            
+            document.getElementById('winner-info').style.display = 'none';
+            document.getElementById('error-box').style.display = 'none';
+            document.getElementById('success-box').style.display = 'none';
+            
+            try {
+                const res = await fetch('/api/branch/verify', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prizeCode: code })
+                });
+                const data = await res.json();
+                
+                if (data.valid) {
+                    currentWinner = data.player;
+                    document.getElementById('winner-name').textContent = data.player.name;
+                    document.getElementById('winner-phone').textContent = '0' + data.player.phone;
+                    document.getElementById('winner-province').textContent = data.player.province;
+                    document.getElementById('winner-code').textContent = data.player.prize_code;
+                    document.getElementById('winner-date').textContent = new Date(data.player.won_at).toLocaleDateString('ar-IQ');
+                    document.getElementById('winner-info').style.display = 'block';
+                } else {
+                    document.getElementById('error-msg').textContent = data.message || 'الكود غير صحيح';
+                    document.getElementById('error-box').style.display = 'block';
+                }
+            } catch (err) {
+                showToast('خطأ في الاتصال', true);
+            }
+        }
+
+        async function claimPrize() {
+            const employeeName = document.getElementById('employee-name').value;
+            if (!employeeName) {
+                showToast('أدخل اسم الموظف', true);
+                return;
+            }
+            
+            try {
+                const res = await fetch('/api/branch/claim', {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + branchToken
+                    },
+                    body: JSON.stringify({
+                        playerId: currentWinner.id,
+                        prizeCode: currentWinner.prize_code,
+                        employeeName: employeeName,
+                        notes: document.getElementById('claim-notes').value
+                    })
+                });
+                const data = await res.json();
+                
+                if (data.success) {
+                    document.getElementById('winner-info').style.display = 'none';
+                    document.getElementById('success-box').style.display = 'block';
+                    currentWinner = null;
+                } else {
+                    showToast(data.error || 'حدث خطأ', true);
+                }
+            } catch (err) {
+                showToast('خطأ في الاتصال', true);
+            }
+        }
+
+        function cancelClaim() {
+            document.getElementById('winner-info').style.display = 'none';
+            currentWinner = null;
+        }
+
+        function resetForm() {
+            document.getElementById('prize-code').value = '';
+            document.getElementById('employee-name').value = '';
+            document.getElementById('claim-notes').value = '';
+            document.getElementById('success-box').style.display = 'none';
+        }
+
+        async function loadHistory() {
+            try {
+                const res = await fetch('/api/branch/claims', {
+                    headers: { 'Authorization': 'Bearer ' + branchToken }
+                });
+                const claims = await res.json();
+                
+                if (claims.length === 0) {
+                    document.getElementById('history-list').innerHTML = '<p style="text-align:center;color:var(--text-muted);">لا توجد تسليمات</p>';
+                    return;
+                }
+                
+                document.getElementById('history-list').innerHTML = claims.map(c => `
+                    <div class="history-item">
+                        <div class="info">
+                            <h4>${c.player_name}</h4>
+                            <p>${c.prize_code} • ${c.employee_name}</p>
+                        </div>
+                        <div class="time">${new Date(c.claimed_at).toLocaleDateString('ar-IQ')}<br>${new Date(c.claimed_at).toLocaleTimeString('ar-IQ')}</div>
+                    </div>
+                `).join('');
+            } catch (err) {
+                document.getElementById('history-list').innerHTML = '<p style="text-align:center;color:var(--danger);">خطأ في التحميل</p>';
+            }
+        }
+
+        function showToast(msg, err = false) {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.className = 'toast' + (err ? ' error' : '');
+            t.classList.add('show');
+            setTimeout(() => t.classList.remove('show'), 3000);
+        }
+    </script>
+</body>
+</html>

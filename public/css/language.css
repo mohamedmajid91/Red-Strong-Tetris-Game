@@ -1,0 +1,112 @@
+/* ============== Language Selector Styles ============== */
+.lang-selector {
+    position: relative;
+    display: inline-block;
+}
+
+.lang-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 15px;
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 12px;
+    color: #fff;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 14px;
+    transition: all 0.3s;
+}
+
+.lang-btn:hover {
+    background: rgba(255,255,255,0.15);
+    border-color: rgba(255,255,255,0.3);
+}
+
+.lang-dropdown {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 8px;
+    background: #1a1a2e;
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 12px;
+    overflow: hidden;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-10px);
+    transition: all 0.3s;
+    z-index: 1000;
+    min-width: 150px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+}
+
+.lang-dropdown.show {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+}
+
+.lang-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 15px;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: #fff;
+}
+
+.lang-option:hover {
+    background: rgba(227,30,36,0.2);
+}
+
+.lang-option.active {
+    background: rgba(227,30,36,0.3);
+    color: #ffd700;
+}
+
+/* RTL Support */
+[dir="rtl"] .lang-dropdown {
+    right: 0;
+    left: auto;
+}
+
+[dir="ltr"] .lang-dropdown {
+    left: 0;
+    right: auto;
+}
+
+/* Light mode support */
+body.light-mode .lang-btn {
+    background: rgba(0,0,0,0.05);
+    border-color: rgba(0,0,0,0.1);
+    color: #333;
+}
+
+body.light-mode .lang-dropdown {
+    background: #fff;
+    border-color: rgba(0,0,0,0.1);
+}
+
+body.light-mode .lang-option {
+    color: #333;
+}
+
+body.light-mode .lang-option:hover {
+    background: rgba(227,30,36,0.1);
+}
+
+/* Admin panel specific */
+.admin-lang-selector {
+    position: fixed;
+    top: 15px;
+    left: 15px;
+    z-index: 9999;
+}
+
+[dir="ltr"] .admin-lang-selector {
+    left: auto;
+    right: 15px;
+}

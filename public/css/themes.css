@@ -1,0 +1,517 @@
+/* ============== Game Themes Styles ============== */
+
+/* CSS Variables for Themes */
+:root {
+    --theme-bg: linear-gradient(180deg, #0a0a1a 0%, #1a1a3a 50%, #0d0d2a 100%);
+    --theme-board-bg: rgba(0, 0, 0, 0.6);
+    --theme-board-border: #333;
+    --theme-text: #ffffff;
+    --theme-accent: #e31e24;
+    --theme-secondary: #ffd700;
+    
+    /* Block colors */
+    --block-I: #00f0f0;
+    --block-O: #f0f000;
+    --block-T: #a000f0;
+    --block-S: #00f000;
+    --block-Z: #f00000;
+    --block-J: #0000f0;
+    --block-L: #f0a000;
+}
+
+/* ============== Block Shapes Selector ============== */
+.shapes-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.shape-card {
+    background: rgba(255,255,255,0.05);
+    border: 2px solid rgba(255,255,255,0.1);
+    border-radius: 10px;
+    padding: 10px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-align: center;
+}
+
+.shape-card:hover {
+    transform: translateY(-2px);
+    border-color: rgba(255,255,255,0.3);
+    background: rgba(255,255,255,0.1);
+}
+
+.shape-card.active {
+    border-color: var(--theme-accent);
+    background: rgba(227,30,36,0.2);
+    box-shadow: 0 0 10px rgba(227,30,36,0.3);
+}
+
+.shape-preview {
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 5px;
+}
+
+.shape-block {
+    width: 30px;
+    height: 30px;
+}
+
+.shape-name {
+    color: var(--theme-text);
+    font-size: 0.7rem;
+    display: block;
+}
+
+/* ============== Theme Selector UI ============== */
+.themes-selector {
+    padding: 15px;
+    max-height: 70vh;
+    overflow-y: auto;
+}
+
+.themes-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+
+.themes-header h3 {
+    color: var(--theme-text);
+    font-size: 1.3rem;
+    margin: 0;
+}
+
+.player-points {
+    background: linear-gradient(135deg, #ffd700, #ffb300);
+    color: #000;
+    padding: 8px 15px;
+    border-radius: 20px;
+    font-weight: bold;
+    font-size: 0.9rem;
+}
+
+.theme-category {
+    margin-bottom: 25px;
+}
+
+.theme-category h4 {
+    color: var(--theme-accent);
+    font-size: 1rem;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.themes-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 12px;
+}
+
+.theme-card {
+    background: rgba(255,255,255,0.05);
+    border: 2px solid rgba(255,255,255,0.1);
+    border-radius: 12px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.theme-card:hover {
+    transform: translateY(-3px);
+    border-color: rgba(255,255,255,0.3);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+}
+
+.theme-card.active {
+    border-color: var(--theme-accent);
+    box-shadow: 0 0 15px rgba(227,30,36,0.4);
+}
+
+.theme-card.locked {
+    opacity: 0.7;
+}
+
+.theme-card.locked:hover {
+    opacity: 1;
+}
+
+.theme-preview {
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+}
+
+.theme-blocks {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 3px;
+}
+
+.mini-block {
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+    box-shadow: inset 0 0 3px rgba(255,255,255,0.3);
+}
+
+.theme-info {
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    background: rgba(0,0,0,0.3);
+}
+
+.theme-icon {
+    font-size: 1.2rem;
+}
+
+.theme-name {
+    color: var(--theme-text);
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-align: center;
+}
+
+.theme-price {
+    color: #ffd700;
+    font-size: 0.7rem;
+    font-weight: bold;
+}
+
+.theme-active {
+    color: #4ade80;
+    font-size: 0.9rem;
+    font-weight: bold;
+}
+
+/* ============== Theme Dialog ============== */
+.theme-dialog-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.theme-dialog {
+    background: linear-gradient(135deg, #1a1a2e 0%, #2d2d44 100%);
+    border: 2px solid rgba(255,255,255,0.2);
+    border-radius: 20px;
+    padding: 25px;
+    max-width: 320px;
+    width: 90%;
+    animation: slideUp 0.3s ease;
+}
+
+@keyframes slideUp {
+    from { transform: translateY(30px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+.dialog-header {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.dialog-icon {
+    font-size: 3rem;
+    display: block;
+    margin-bottom: 10px;
+}
+
+.dialog-header h3 {
+    color: #fff;
+    margin: 0;
+    font-size: 1.3rem;
+}
+
+.dialog-body {
+    text-align: center;
+}
+
+.theme-big-preview {
+    height: 100px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 15px;
+    border: 2px solid rgba(255,255,255,0.2);
+}
+
+.preview-blocks {
+    display: flex;
+    gap: 5px;
+    flex-wrap: wrap;
+    justify-content: center;
+    max-width: 120px;
+}
+
+.preview-block {
+    width: 20px;
+    height: 20px;
+    border-radius: 3px;
+    box-shadow: 0 0 5px currentColor;
+}
+
+.dialog-price, .dialog-balance {
+    color: #aaa;
+    font-size: 0.95rem;
+    margin: 8px 0;
+}
+
+.dialog-price strong {
+    color: #ffd700;
+}
+
+.dialog-balance strong {
+    color: #4ade80;
+}
+
+.dialog-error {
+    color: #ff6b6b;
+    font-size: 0.85rem;
+    margin-top: 10px;
+}
+
+.dialog-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.dialog-actions button {
+    flex: 1;
+    padding: 12px;
+    border: none;
+    border-radius: 10px;
+    font-family: inherit;
+    font-size: 0.95rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.btn-cancel {
+    background: rgba(255,255,255,0.1);
+    color: #fff;
+}
+
+.btn-cancel:hover {
+    background: rgba(255,255,255,0.2);
+}
+
+.btn-unlock {
+    background: linear-gradient(135deg, #ffd700, #ffb300);
+    color: #000;
+}
+
+.btn-unlock:hover {
+    transform: scale(1.02);
+    box-shadow: 0 5px 20px rgba(255,215,0,0.4);
+}
+
+/* ============== Theme Notification ============== */
+.theme-notification {
+    position: fixed;
+    bottom: 100px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: rgba(0,0,0,0.9);
+    color: #fff;
+    padding: 12px 25px;
+    border-radius: 25px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    z-index: 10001;
+    opacity: 0;
+    transition: all 0.3s ease;
+    pointer-events: none;
+}
+
+.theme-notification.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+
+.theme-notification.success {
+    background: linear-gradient(135deg, #065f46, #047857);
+    border: 1px solid #10b981;
+}
+
+.theme-notification.error {
+    background: linear-gradient(135deg, #7f1d1d, #991b1b);
+    border: 1px solid #ef4444;
+}
+
+/* ============== Theme Button in Game ============== */
+.theme-toggle-btn {
+    position: fixed;
+    bottom: 20px;
+    right: 70px;
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background: rgba(0,0,0,0.7);
+    border: 2px solid rgba(255,255,255,0.2);
+    color: #fff;
+    font-size: 1.5rem;
+    cursor: pointer;
+    z-index: 100;
+    transition: all 0.3s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.theme-toggle-btn:hover {
+    background: rgba(0,0,0,0.9);
+    transform: scale(1.1);
+    border-color: var(--theme-accent);
+}
+
+/* ============== Particles Canvas ============== */
+#particles-canvas {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 50;
+}
+
+/* ============== Theme-specific Effects ============== */
+
+/* Neon glow effect */
+.theme-neon .game-board-wrapper {
+    box-shadow: 0 0 20px var(--theme-accent), 0 0 40px var(--theme-secondary);
+}
+
+/* Retro pixelated */
+.theme-retro * {
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+}
+
+/* Cyberpunk scanlines */
+.theme-cyberpunk .game-container::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0, 255, 255, 0.02) 2px,
+        rgba(0, 255, 255, 0.02) 4px
+    );
+    pointer-events: none;
+    z-index: 1000;
+}
+
+/* Golden shimmer */
+.theme-golden .stat-value,
+.theme-golden .score-value {
+    background: linear-gradient(90deg, #ffd700, #fff, #ffd700);
+    background-size: 200% 100%;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: goldShimmer 3s ease-in-out infinite;
+}
+
+@keyframes goldShimmer {
+    0% { background-position: -100% 0; }
+    100% { background-position: 100% 0; }
+}
+
+/* Diamond rainbow */
+.theme-diamond .game-board-wrapper {
+    animation: rainbowBorder 5s linear infinite;
+}
+
+@keyframes rainbowBorder {
+    0% { border-color: #ff0000; }
+    17% { border-color: #ff8800; }
+    33% { border-color: #ffff00; }
+    50% { border-color: #00ff00; }
+    67% { border-color: #0088ff; }
+    83% { border-color: #8800ff; }
+    100% { border-color: #ff0000; }
+}
+
+/* ============== Theme Modal ============== */
+.themes-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.9);
+    z-index: 5000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+}
+
+.themes-modal.active {
+    display: flex;
+}
+
+.themes-modal-content {
+    background: linear-gradient(135deg, #1a1a2e 0%, #0d0d1a 100%);
+    border: 2px solid rgba(255,255,255,0.1);
+    border-radius: 20px;
+    width: 95%;
+    max-width: 450px;
+    max-height: 85vh;
+    overflow: hidden;
+}
+
+.themes-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 20px;
+    background: rgba(0,0,0,0.3);
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+
+.themes-modal-header h3 {
+    color: #fff;
+    margin: 0;
+    font-size: 1.2rem;
+}
+
+.themes-modal-close {
+    background: none;
+    border: none;
+    color: #fff;
+    font-size: 1.5rem;
+    cursor: pointer;
+    padding: 5px;
+    line-height: 1;
+}
+
+.themes-modal-body {
+    padding: 0;
+    max-height: calc(85vh - 60px);
+    overflow-y: auto;
+}
