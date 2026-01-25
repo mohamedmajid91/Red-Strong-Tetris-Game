@@ -4470,22 +4470,32 @@
             
             if (!title || !text) { showToast('الرجاء إدخال العنوان والنص', 'error'); return; }
             
-            // Handle image upload
-            let imageBase64 = null;
-            if (imageInput.files && imageInput.files[0]) {
-                imageBase64 = await new Promise((resolve) => {
-                    const reader = new FileReader();
-                    reader.onload = (e) => resolve(e.target.result);
-                    reader.readAsDataURL(imageInput.files[0]);
-                });
-            }
-            
             try {
+                let imagePath = null;
+                
+                // Upload image first if selected
+                if (imageInput.files && imageInput.files[0]) {
+                    const formData = new FormData();
+                    formData.append('image', imageInput.files[0]);
+                    const uploadRes = await fetch('/api/admin/upload', {
+                        method: 'POST',
+                        headers: { 'Authorization': 'Bearer ' + token },
+                        body: formData
+                    });
+                    const uploadData = await uploadRes.json();
+                    if (uploadData.success) {
+                        imagePath = uploadData.path;
+                    } else {
+                        showToast('فشل رفع الصورة', 'error');
+                        return;
+                    }
+                }
+                
                 const url = id ? `/api/admin/announcements/${id}` : '/api/admin/announcements';
                 const method = id ? 'PUT' : 'POST';
                 
                 const body = { title, text, type, link, priority, active };
-                if (imageBase64) body.image = imageBase64;
+                if (imagePath) body.image = imagePath;
                 if (expires) body.expires_at = expires;
                 
                 const res = await fetch(url, {
