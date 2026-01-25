@@ -87,16 +87,27 @@ app.use(sanitizeInput);
 // Rate Limiting - Enhanced
 const limiter = rateLimit({ 
     windowMs: 15 * 60 * 1000,
-    max: 100,
+    max: 500, // زيادة الحد
     message: { error: 'طلبات كثيرة، حاول لاحقاً' },
     standardHeaders: true,
-    legacyHeaders: false
+    legacyHeaders: false,
+    skip: (req) => {
+        // Skip rate limit for admin routes if authenticated
+        return req.path.startsWith('/api/admin/') && req.headers.authorization;
+    }
 });
 app.use('/api/', limiter);
 
+// Admin limiter - أكثر سماحية
+const adminLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 1000, // حد عالي للأدمن
+    message: { error: 'طلبات كثيرة' }
+});
+
 const loginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 3,
+    max: 5, // زيادة من 3 إلى 5
     message: { error: 'محاولات تسجيل دخول كثيرة، انتظر 15 دقيقة' },
     skipSuccessfulRequests: true
 });
