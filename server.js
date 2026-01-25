@@ -815,12 +815,227 @@ const initDB = async () => {
             )
         `);
 
+        // ============== NEW FEATURES V70 ==============
+        
+        // Tournaments table
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS tournaments (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(100) NOT NULL,
+                description TEXT,
+                type VARCHAR(20) DEFAULT 'weekly',
+                start_date TIMESTAMP NOT NULL,
+                end_date TIMESTAMP NOT NULL,
+                min_score INTEGER DEFAULT 0,
+                max_players INTEGER DEFAULT 100,
+                entry_fee INTEGER DEFAULT 0,
+                prize_pool JSONB DEFAULT '[]',
+                status VARCHAR(20) DEFAULT 'upcoming',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
+        // Tournament Participants
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS tournament_participants (
+                id SERIAL PRIMARY KEY,
+                tournament_id INTEGER REFERENCES tournaments(id) ON DELETE CASCADE,
+                phone VARCHAR(20) NOT NULL,
+                name VARCHAR(100),
+                score INTEGER DEFAULT 0,
+                rank INTEGER,
+                prize_won INTEGER DEFAULT 0,
+                joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(tournament_id, phone)
+            )
+        `);
+
+        // Points Store Items
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS store_items (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(100) NOT NULL,
+                description TEXT,
+                type VARCHAR(20) DEFAULT 'theme',
+                price INTEGER NOT NULL,
+                image VARCHAR(255),
+                value TEXT,
+                stock INTEGER DEFAULT -1,
+                sold_count INTEGER DEFAULT 0,
+                active BOOLEAN DEFAULT true,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
+        // Player Purchases
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS player_purchases (
+                id SERIAL PRIMARY KEY,
+                phone VARCHAR(20) NOT NULL,
+                item_id INTEGER REFERENCES store_items(id),
+                item_name VARCHAR(100),
+                price_paid INTEGER,
+                purchased_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
+        // Player Themes (owned themes)
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS player_themes (
+                id SERIAL PRIMARY KEY,
+                phone VARCHAR(20) NOT NULL,
+                theme_id VARCHAR(50) NOT NULL,
+                theme_name VARCHAR(100),
+                equipped BOOLEAN DEFAULT false,
+                obtained_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(phone, theme_id)
+            )
+        `);
+
+        // Notifications table
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS notifications (
+                id SERIAL PRIMARY KEY,
+                phone VARCHAR(20),
+                type VARCHAR(30) NOT NULL,
+                title VARCHAR(100) NOT NULL,
+                message TEXT,
+                data JSONB,
+                read BOOLEAN DEFAULT false,
+                sent BOOLEAN DEFAULT false,
+                sent_at TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
+        // Challenges table (daily/weekly)
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS challenges (
+                id SERIAL PRIMARY KEY,
+                title VARCHAR(100) NOT NULL,
+                description TEXT,
+                type VARCHAR(20) DEFAULT 'daily',
+                goal_type VARCHAR(30) NOT NULL,
+                goal_value INTEGER NOT NULL,
+                reward_type VARCHAR(20) DEFAULT 'points',
+                reward_value INTEGER NOT NULL,
+                icon VARCHAR(10) DEFAULT '🎯',
+                start_date DATE,
+                end_date DATE,
+                active BOOLEAN DEFAULT true,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
+        // Challenge Progress
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS challenge_progress (
+                id SERIAL PRIMARY KEY,
+                challenge_id INTEGER REFERENCES challenges(id) ON DELETE CASCADE,
+                phone VARCHAR(20) NOT NULL,
+                progress INTEGER DEFAULT 0,
+                completed BOOLEAN DEFAULT false,
+                reward_claimed BOOLEAN DEFAULT false,
+                completed_at TIMESTAMP,
+                UNIQUE(challenge_id, phone)
+            )
+        `);
+
+        // Player Levels table
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS player_levels (
+                id SERIAL PRIMARY KEY,
+                phone VARCHAR(20) UNIQUE NOT NULL,
+                level INTEGER DEFAULT 1,
+                xp INTEGER DEFAULT 0,
+                total_xp INTEGER DEFAULT 0,
+                rank_name VARCHAR(50) DEFAULT 'مبتدئ',
+                rank_icon VARCHAR(10) DEFAULT '🥉',
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
+        // Level Definitions
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS level_definitions (
+                id SERIAL PRIMARY KEY,
+                level INTEGER UNIQUE NOT NULL,
+                name VARCHAR(50) NOT NULL,
+                icon VARCHAR(10) DEFAULT '⭐',
+                xp_required INTEGER NOT NULL,
+                reward INTEGER DEFAULT 0,
+                perks JSONB DEFAULT '{}'
+            )
+        `);
+
+        // Insert default levels
+        const levelsCount = await pool.query('SELECT COUNT(*) FROM level_definitions');
+        if (parseInt(levelsCount.rows[0].count) === 0) {
+            const defaultLevels = [
+                [1, 'مبتدئ', '🥉', 0, 0],
+                [2, 'متمرس', '🥉', 500, 50],
+                [3, 'محترف', '🥈', 1500, 100],
+                [4, 'خبير', '🥈', 3000, 150],
+                [5, 'أسطورة', '🥇', 5000, 200],
+                [6, 'ماسي', '💎', 10000, 300],
+                [7, 'أسطوري', '👑', 20000, 500],
+                [8, 'إله اللعبة', '🏆', 50000, 1000]
+            ];
+            for (const [level, name, icon, xp, reward] of defaultLevels) {
+                await pool.query(
+                    'INSERT INTO level_definitions (level, name, icon, xp_required, reward) VALUES ($1, $2, $3, $4, $5)',
+                    [level, name, icon, xp, reward]
+                );
+            }
+        }
+
+        // Insert default store items
+        const storeCount = await pool.query('SELECT COUNT(*) FROM store_items');
+        if (parseInt(storeCount.rows[0].count) === 0) {
+            const defaultItems = [
+                ['ثيم النار 🔥', 'ثيم حصري بألوان النار', 'theme', 500, 'fire'],
+                ['ثيم الفضاء 🚀', 'ثيم فضائي رائع', 'theme', 750, 'space'],
+                ['ثيم الطبيعة 🌿', 'ثيم أخضر مريح للعين', 'theme', 500, 'nature'],
+                ['دورة إضافية', 'احصل على دورة لعب إضافية', 'extra_round', 300, '1'],
+                ['دخول VIP للسحب', 'دخول السحب الخاص', 'vip_draw', 1000, 'vip'],
+                ['مضاعف النقاط x2', 'ضاعف نقاطك للساعة القادمة', 'multiplier', 400, '2']
+            ];
+            for (const [name, desc, type, price, value] of defaultItems) {
+                await pool.query(
+                    'INSERT INTO store_items (name, description, type, price, value) VALUES ($1, $2, $3, $4, $5)',
+                    [name, desc, type, price, value]
+                );
+            }
+        }
+
+        // Insert default challenges
+        const challengesCount = await pool.query('SELECT COUNT(*) FROM challenges');
+        if (parseInt(challengesCount.rows[0].count) === 0) {
+            const defaultChallenges = [
+                ['احصل على 1000 نقطة', 'اجمع 1000 نقطة اليوم', 'daily', 'score', 1000, 100, '🎯'],
+                ['العب 3 مرات', 'العب 3 جولات اليوم', 'daily', 'games', 3, 50, '🎮'],
+                ['احذف 20 سطر', 'احذف 20 سطر في جولة واحدة', 'daily', 'lines', 20, 75, '📊'],
+                ['تحدي الأسبوع', 'احصل على 10000 نقطة هذا الأسبوع', 'weekly', 'score', 10000, 500, '🏆'],
+                ['لاعب نشيط', 'العب 20 جولة هذا الأسبوع', 'weekly', 'games', 20, 300, '⚡']
+            ];
+            for (const [title, desc, type, goal_type, goal_value, reward, icon] of defaultChallenges) {
+                await pool.query(
+                    'INSERT INTO challenges (title, description, type, goal_type, goal_value, reward_value, icon, active) VALUES ($1, $2, $3, $4, $5, $6, $7, true)',
+                    [title, desc, type, goal_type, goal_value, reward, icon]
+                );
+            }
+        }
+
         
         // Performance Indexes
         await pool.query('CREATE INDEX IF NOT EXISTS idx_players_device_id ON players(device_id)');
         await pool.query('CREATE INDEX IF NOT EXISTS idx_players_phone ON players(phone)');
         await pool.query('CREATE INDEX IF NOT EXISTS idx_players_status ON players(status)');
         await pool.query('CREATE INDEX IF NOT EXISTS idx_players_score ON players(score DESC)');
+        await pool.query('CREATE INDEX IF NOT EXISTS idx_notifications_phone ON notifications(phone)');
+        await pool.query('CREATE INDEX IF NOT EXISTS idx_challenge_progress_phone ON challenge_progress(phone)');
+        await pool.query('CREATE INDEX IF NOT EXISTS idx_tournament_participants_phone ON tournament_participants(phone)');
+        await pool.query('CREATE INDEX IF NOT EXISTS idx_referrals_referrer ON referrals(referrer_phone)');
 
         console.log('✅ Database tables initialized');
     } catch (err) {
@@ -6299,6 +6514,630 @@ app.post('/api/admin/factory-reset', authenticateToken, async (req, res) => {
     }
 });
 
+// ============== V70 NEW FEATURES APIs ==============
+
+// ===== REFERRAL SYSTEM =====
+// Generate referral code for player
+app.get('/api/referral/code/:phone', async (req, res) => {
+    try {
+        const { phone } = req.params;
+        let player = await pool.query('SELECT referral_code FROM players WHERE phone = $1', [phone]);
+        
+        if (player.rows.length === 0) {
+            return res.status(404).json({ error: 'اللاعب غير موجود' });
+        }
+        
+        let code = player.rows[0].referral_code;
+        if (!code) {
+            code = 'RS' + phone.slice(-4) + Math.random().toString(36).substring(2, 6).toUpperCase();
+            await pool.query('UPDATE players SET referral_code = $1 WHERE phone = $2', [code, phone]);
+        }
+        
+        const stats = await pool.query(
+            'SELECT COUNT(*) as total, SUM(referrer_bonus) as earnings FROM referrals WHERE referrer_phone = $1 AND status = $2',
+            [phone, 'completed']
+        );
+        
+        res.json({ 
+            success: true, 
+            code,
+            referrals: parseInt(stats.rows[0].total) || 0,
+            earnings: parseInt(stats.rows[0].earnings) || 0
+        });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Apply referral code
+app.post('/api/referral/apply', async (req, res) => {
+    try {
+        const { phone, referralCode } = req.body;
+        
+        // Find referrer
+        const referrer = await pool.query('SELECT phone FROM players WHERE referral_code = $1', [referralCode]);
+        if (referrer.rows.length === 0) {
+            return res.status(400).json({ error: 'كود الإحالة غير صحيح' });
+        }
+        
+        if (referrer.rows[0].phone === phone) {
+            return res.status(400).json({ error: 'لا يمكنك استخدام كود الإحالة الخاص بك' });
+        }
+        
+        // Check if already referred
+        const existing = await pool.query('SELECT id FROM referrals WHERE referred_phone = $1', [phone]);
+        if (existing.rows.length > 0) {
+            return res.status(400).json({ error: 'تم تطبيق كود إحالة مسبقاً' });
+        }
+        
+        // Create referral
+        await pool.query(
+            'INSERT INTO referrals (referrer_phone, referred_phone, status) VALUES ($1, $2, $3)',
+            [referrer.rows[0].phone, phone, 'completed']
+        );
+        
+        // Give bonuses
+        await pool.query('UPDATE players SET score = score + 100 WHERE phone = $1', [referrer.rows[0].phone]);
+        await pool.query('UPDATE players SET score = score + 50, referred_by = $1 WHERE phone = $2', [referrer.rows[0].phone, phone]);
+        
+        res.json({ success: true, bonus: 50, message: 'تم تطبيق كود الإحالة! حصلت على 50 نقطة' });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// ===== CHALLENGES SYSTEM =====
+// Get active challenges
+app.get('/api/challenges/:phone', async (req, res) => {
+    try {
+        const { phone } = req.params;
+        const today = new Date().toISOString().split('T')[0];
+        
+        const challenges = await pool.query(`
+            SELECT c.*, 
+                COALESCE(cp.progress, 0) as progress,
+                COALESCE(cp.completed, false) as completed,
+                COALESCE(cp.reward_claimed, false) as reward_claimed
+            FROM challenges c
+            LEFT JOIN challenge_progress cp ON c.id = cp.challenge_id AND cp.phone = $1
+            WHERE c.active = true
+            AND (c.type = 'daily' OR (c.type = 'weekly' AND EXTRACT(DOW FROM CURRENT_DATE) <= 6))
+            ORDER BY c.type, c.reward_value DESC
+        `, [phone]);
+        
+        res.json({ success: true, challenges: challenges.rows });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Update challenge progress
+app.post('/api/challenges/progress', async (req, res) => {
+    try {
+        const { phone, challengeId, progress } = req.body;
+        
+        const challenge = await pool.query('SELECT * FROM challenges WHERE id = $1', [challengeId]);
+        if (challenge.rows.length === 0) {
+            return res.status(404).json({ error: 'التحدي غير موجود' });
+        }
+        
+        const ch = challenge.rows[0];
+        const completed = progress >= ch.goal_value;
+        
+        await pool.query(`
+            INSERT INTO challenge_progress (challenge_id, phone, progress, completed, completed_at)
+            VALUES ($1, $2, $3, $4, $5)
+            ON CONFLICT (challenge_id, phone) 
+            DO UPDATE SET progress = $3, completed = $4, completed_at = CASE WHEN $4 THEN CURRENT_TIMESTAMP ELSE NULL END
+        `, [challengeId, phone, progress, completed, completed ? new Date() : null]);
+        
+        res.json({ success: true, completed, progress });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Claim challenge reward
+app.post('/api/challenges/claim', async (req, res) => {
+    try {
+        const { phone, challengeId } = req.body;
+        
+        const progress = await pool.query(
+            'SELECT * FROM challenge_progress WHERE challenge_id = $1 AND phone = $2',
+            [challengeId, phone]
+        );
+        
+        if (progress.rows.length === 0 || !progress.rows[0].completed) {
+            return res.status(400).json({ error: 'التحدي غير مكتمل' });
+        }
+        
+        if (progress.rows[0].reward_claimed) {
+            return res.status(400).json({ error: 'تم استلام المكافأة مسبقاً' });
+        }
+        
+        const challenge = await pool.query('SELECT reward_value FROM challenges WHERE id = $1', [challengeId]);
+        const reward = challenge.rows[0].reward_value;
+        
+        await pool.query('UPDATE challenge_progress SET reward_claimed = true WHERE challenge_id = $1 AND phone = $2', [challengeId, phone]);
+        await pool.query('UPDATE players SET score = score + $1 WHERE phone = $2', [reward, phone]);
+        
+        res.json({ success: true, reward, message: `حصلت على ${reward} نقطة!` });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// ===== STORE SYSTEM =====
+// Get store items
+app.get('/api/store/items', async (req, res) => {
+    try {
+        const items = await pool.query('SELECT * FROM store_items WHERE active = true ORDER BY type, price');
+        res.json({ success: true, items: items.rows });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Purchase item
+app.post('/api/store/purchase', async (req, res) => {
+    try {
+        const { phone, itemId } = req.body;
+        
+        const item = await pool.query('SELECT * FROM store_items WHERE id = $1 AND active = true', [itemId]);
+        if (item.rows.length === 0) {
+            return res.status(404).json({ error: 'المنتج غير موجود' });
+        }
+        
+        const player = await pool.query('SELECT score FROM players WHERE phone = $1', [phone]);
+        if (player.rows.length === 0) {
+            return res.status(404).json({ error: 'اللاعب غير موجود' });
+        }
+        
+        const it = item.rows[0];
+        if (player.rows[0].score < it.price) {
+            return res.status(400).json({ error: 'نقاط غير كافية' });
+        }
+        
+        if (it.stock !== -1 && it.sold_count >= it.stock) {
+            return res.status(400).json({ error: 'المنتج نفذ' });
+        }
+        
+        // Deduct points
+        await pool.query('UPDATE players SET score = score - $1 WHERE phone = $2', [it.price, phone]);
+        
+        // Record purchase
+        await pool.query(
+            'INSERT INTO player_purchases (phone, item_id, item_name, price_paid) VALUES ($1, $2, $3, $4)',
+            [phone, itemId, it.name, it.price]
+        );
+        
+        // Update sold count
+        await pool.query('UPDATE store_items SET sold_count = sold_count + 1 WHERE id = $1', [itemId]);
+        
+        // Handle item type
+        if (it.type === 'theme') {
+            await pool.query(
+                'INSERT INTO player_themes (phone, theme_id, theme_name) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
+                [phone, it.value, it.name]
+            );
+        }
+        
+        res.json({ success: true, message: `تم شراء ${it.name}!`, item: it });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Get player owned themes
+app.get('/api/store/themes/:phone', async (req, res) => {
+    try {
+        const themes = await pool.query('SELECT * FROM player_themes WHERE phone = $1', [req.params.phone]);
+        res.json({ success: true, themes: themes.rows });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// ===== TOURNAMENT SYSTEM =====
+// Get active tournaments
+app.get('/api/tournaments', async (req, res) => {
+    try {
+        const tournaments = await pool.query(`
+            SELECT t.*, 
+                (SELECT COUNT(*) FROM tournament_participants WHERE tournament_id = t.id) as participants_count
+            FROM tournaments t
+            WHERE t.status IN ('upcoming', 'active')
+            ORDER BY t.start_date
+        `);
+        res.json({ success: true, tournaments: tournaments.rows });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Join tournament
+app.post('/api/tournaments/join', async (req, res) => {
+    try {
+        const { phone, tournamentId } = req.body;
+        
+        const tournament = await pool.query('SELECT * FROM tournaments WHERE id = $1', [tournamentId]);
+        if (tournament.rows.length === 0) {
+            return res.status(404).json({ error: 'البطولة غير موجودة' });
+        }
+        
+        const t = tournament.rows[0];
+        if (t.status !== 'upcoming' && t.status !== 'active') {
+            return res.status(400).json({ error: 'البطولة مغلقة' });
+        }
+        
+        const player = await pool.query('SELECT name, score FROM players WHERE phone = $1', [phone]);
+        if (player.rows.length === 0) {
+            return res.status(404).json({ error: 'اللاعب غير موجود' });
+        }
+        
+        if (player.rows[0].score < t.min_score) {
+            return res.status(400).json({ error: `تحتاج ${t.min_score} نقطة للمشاركة` });
+        }
+        
+        // Entry fee
+        if (t.entry_fee > 0) {
+            if (player.rows[0].score < t.entry_fee) {
+                return res.status(400).json({ error: 'نقاط غير كافية لرسوم الاشتراك' });
+            }
+            await pool.query('UPDATE players SET score = score - $1 WHERE phone = $2', [t.entry_fee, phone]);
+        }
+        
+        await pool.query(
+            'INSERT INTO tournament_participants (tournament_id, phone, name) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
+            [tournamentId, phone, player.rows[0].name]
+        );
+        
+        res.json({ success: true, message: 'تم التسجيل في البطولة!' });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Get tournament leaderboard
+app.get('/api/tournaments/:id/leaderboard', async (req, res) => {
+    try {
+        const leaderboard = await pool.query(`
+            SELECT phone, name, score, rank
+            FROM tournament_participants
+            WHERE tournament_id = $1
+            ORDER BY score DESC
+            LIMIT 50
+        `, [req.params.id]);
+        res.json({ success: true, leaderboard: leaderboard.rows });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// ===== NOTIFICATIONS SYSTEM =====
+// Get player notifications
+app.get('/api/notifications/:phone', async (req, res) => {
+    try {
+        const notifications = await pool.query(
+            'SELECT * FROM notifications WHERE phone = $1 ORDER BY created_at DESC LIMIT 50',
+            [req.params.phone]
+        );
+        res.json({ success: true, notifications: notifications.rows });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Mark notification as read
+app.post('/api/notifications/read', async (req, res) => {
+    try {
+        const { phone, notificationId } = req.body;
+        
+        if (notificationId) {
+            await pool.query('UPDATE notifications SET read = true WHERE id = $1 AND phone = $2', [notificationId, phone]);
+        } else {
+            await pool.query('UPDATE notifications SET read = true WHERE phone = $1', [phone]);
+        }
+        
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// ===== PLAYER LEVELS =====
+// Get player level info
+app.get('/api/level/:phone', async (req, res) => {
+    try {
+        const { phone } = req.params;
+        
+        let levelInfo = await pool.query('SELECT * FROM player_levels WHERE phone = $1', [phone]);
+        
+        if (levelInfo.rows.length === 0) {
+            await pool.query('INSERT INTO player_levels (phone) VALUES ($1)', [phone]);
+            levelInfo = await pool.query('SELECT * FROM player_levels WHERE phone = $1', [phone]);
+        }
+        
+        const levels = await pool.query('SELECT * FROM level_definitions ORDER BY level');
+        const currentLevel = levelInfo.rows[0];
+        const nextLevel = levels.rows.find(l => l.level === currentLevel.level + 1);
+        
+        res.json({
+            success: true,
+            level: currentLevel,
+            nextLevel,
+            allLevels: levels.rows
+        });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Add XP and check level up
+app.post('/api/level/addxp', async (req, res) => {
+    try {
+        const { phone, xp } = req.body;
+        
+        let levelInfo = await pool.query('SELECT * FROM player_levels WHERE phone = $1', [phone]);
+        if (levelInfo.rows.length === 0) {
+            await pool.query('INSERT INTO player_levels (phone, xp, total_xp) VALUES ($1, $2, $2)', [phone, xp]);
+            levelInfo = await pool.query('SELECT * FROM player_levels WHERE phone = $1', [phone]);
+        } else {
+            await pool.query(
+                'UPDATE player_levels SET xp = xp + $1, total_xp = total_xp + $1, updated_at = CURRENT_TIMESTAMP WHERE phone = $2',
+                [xp, phone]
+            );
+            levelInfo = await pool.query('SELECT * FROM player_levels WHERE phone = $1', [phone]);
+        }
+        
+        const current = levelInfo.rows[0];
+        const nextLevel = await pool.query('SELECT * FROM level_definitions WHERE level = $1', [current.level + 1]);
+        
+        let leveledUp = false;
+        let newLevel = null;
+        
+        if (nextLevel.rows.length > 0 && current.total_xp >= nextLevel.rows[0].xp_required) {
+            const nl = nextLevel.rows[0];
+            await pool.query(
+                'UPDATE player_levels SET level = $1, rank_name = $2, rank_icon = $3, xp = 0 WHERE phone = $4',
+                [nl.level, nl.name, nl.icon, phone]
+            );
+            
+            // Give level up reward
+            if (nl.reward > 0) {
+                await pool.query('UPDATE players SET score = score + $1 WHERE phone = $2', [nl.reward, phone]);
+            }
+            
+            leveledUp = true;
+            newLevel = nl;
+            
+            // Create notification
+            await pool.query(
+                'INSERT INTO notifications (phone, type, title, message) VALUES ($1, $2, $3, $4)',
+                [phone, 'level_up', 'ترقية! 🎉', `وصلت للمستوى ${nl.level} - ${nl.name}! حصلت على ${nl.reward} نقطة`]
+            );
+        }
+        
+        res.json({ success: true, leveledUp, newLevel, currentXP: current.total_xp });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// ===== ADMIN: TOURNAMENTS =====
+app.get('/api/admin/tournaments', authenticateToken, async (req, res) => {
+    try {
+        const tournaments = await pool.query('SELECT * FROM tournaments ORDER BY start_date DESC');
+        res.json({ success: true, tournaments: tournaments.rows });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+app.post('/api/admin/tournaments', authenticateToken, async (req, res) => {
+    try {
+        const { name, description, type, start_date, end_date, min_score, max_players, entry_fee, prize_pool } = req.body;
+        const result = await pool.query(
+            `INSERT INTO tournaments (name, description, type, start_date, end_date, min_score, max_players, entry_fee, prize_pool)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+            [name, description, type, start_date, end_date, min_score || 0, max_players || 100, entry_fee || 0, JSON.stringify(prize_pool || [])]
+        );
+        res.json({ success: true, tournament: result.rows[0] });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// ===== ADMIN: CHALLENGES =====
+app.get('/api/admin/challenges', authenticateToken, async (req, res) => {
+    try {
+        const challenges = await pool.query('SELECT * FROM challenges ORDER BY type, created_at DESC');
+        res.json({ success: true, challenges: challenges.rows });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+app.post('/api/admin/challenges', authenticateToken, async (req, res) => {
+    try {
+        const { title, description, type, goal_type, goal_value, reward_value, icon } = req.body;
+        const result = await pool.query(
+            `INSERT INTO challenges (title, description, type, goal_type, goal_value, reward_value, icon)
+             VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+            [title, description, type, goal_type, goal_value, reward_value, icon || '🎯']
+        );
+        res.json({ success: true, challenge: result.rows[0] });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+app.delete('/api/admin/challenges/:id', authenticateToken, async (req, res) => {
+    try {
+        await pool.query('DELETE FROM challenges WHERE id = $1', [req.params.id]);
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// ===== ADMIN: STORE =====
+app.get('/api/admin/store', authenticateToken, async (req, res) => {
+    try {
+        const items = await pool.query('SELECT * FROM store_items ORDER BY type, created_at DESC');
+        res.json({ success: true, items: items.rows });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+app.post('/api/admin/store', authenticateToken, async (req, res) => {
+    try {
+        const { name, description, type, price, image, value, stock } = req.body;
+        const result = await pool.query(
+            `INSERT INTO store_items (name, description, type, price, image, value, stock)
+             VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+            [name, description, type, price, image, value, stock || -1]
+        );
+        res.json({ success: true, item: result.rows[0] });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+app.delete('/api/admin/store/:id', authenticateToken, async (req, res) => {
+    try {
+        await pool.query('DELETE FROM store_items WHERE id = $1', [req.params.id]);
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// ===== ADMIN: REFERRALS STATS =====
+app.get('/api/admin/referrals', authenticateToken, async (req, res) => {
+    try {
+        const stats = await pool.query(`
+            SELECT r.referrer_phone, p.name as referrer_name,
+                COUNT(*) as total_referrals,
+                SUM(r.referrer_bonus) as total_bonus
+            FROM referrals r
+            LEFT JOIN players p ON r.referrer_phone = p.phone
+            GROUP BY r.referrer_phone, p.name
+            ORDER BY total_referrals DESC
+            LIMIT 50
+        `);
+        
+        const total = await pool.query('SELECT COUNT(*) as count, SUM(referrer_bonus + referred_bonus) as total FROM referrals');
+        
+        res.json({ 
+            success: true, 
+            referrals: stats.rows,
+            totals: total.rows[0]
+        });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// ===== ADMIN: EXPORT EXCEL =====
+app.get('/api/admin/export/players', authenticateToken, async (req, res) => {
+    try {
+        const players = await pool.query(`
+            SELECT name, phone, province, score, status, 
+                TO_CHAR(created_at, 'YYYY-MM-DD HH24:MI') as registered,
+                TO_CHAR(played_at, 'YYYY-MM-DD HH24:MI') as last_played
+            FROM players 
+            ORDER BY score DESC
+        `);
+        
+        // Simple CSV export
+        let csv = 'الاسم,الهاتف,المحافظة,النقاط,الحالة,تاريخ التسجيل,آخر لعب\n';
+        players.rows.forEach(p => {
+            csv += `${p.name},${p.phone},${p.province},${p.score},${p.status},${p.registered || ''},${p.last_played || ''}\n`;
+        });
+        
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', 'attachment; filename=players.csv');
+        res.send('\uFEFF' + csv); // BOM for Arabic support
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// ===== ADMIN: PDF REPORT =====
+app.get('/api/admin/report/pdf', authenticateToken, async (req, res) => {
+    try {
+        const stats = await pool.query(`
+            SELECT 
+                (SELECT COUNT(*) FROM players) as total_players,
+                (SELECT COUNT(*) FROM players WHERE status = 'winner') as winners,
+                (SELECT SUM(score) FROM players) as total_score,
+                (SELECT COUNT(*) FROM referrals) as total_referrals
+        `);
+        
+        const topPlayers = await pool.query('SELECT name, phone, score FROM players ORDER BY score DESC LIMIT 10');
+        
+        // Return JSON for now (PDF generation can be added with pdfkit)
+        res.json({
+            success: true,
+            report: {
+                generated_at: new Date().toISOString(),
+                stats: stats.rows[0],
+                top_players: topPlayers.rows
+            }
+        });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// ===== ADMIN: BACKUP =====
+app.post('/api/admin/backup/create', authenticateToken, async (req, res) => {
+    try {
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const filename = `backup_${timestamp}.json`;
+        
+        // Get all data
+        const players = await pool.query('SELECT * FROM players');
+        const settings = await pool.query('SELECT * FROM settings');
+        const prizes = await pool.query('SELECT * FROM prizes');
+        const announcements = await pool.query('SELECT * FROM announcements');
+        
+        const backup = {
+            created_at: new Date().toISOString(),
+            players: players.rows,
+            settings: settings.rows,
+            prizes: prizes.rows,
+            announcements: announcements.rows
+        };
+        
+        // Save to file
+        const backupPath = `./backups/${filename}`;
+        if (!fs.existsSync('./backups')) fs.mkdirSync('./backups');
+        fs.writeFileSync(backupPath, JSON.stringify(backup, null, 2));
+        
+        // Log backup
+        await pool.query(
+            'INSERT INTO backup_logs (filename, type, created_by) VALUES ($1, $2, $3)',
+            [filename, req.body.type || 'manual', req.user?.id]
+        );
+        
+        res.json({ success: true, filename, size: Buffer.byteLength(JSON.stringify(backup)) });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+app.get('/api/admin/backup/list', authenticateToken, async (req, res) => {
+    try {
+        const backups = await pool.query('SELECT * FROM backup_logs ORDER BY created_at DESC LIMIT 20');
+        res.json({ success: true, backups: backups.rows });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
 // Load bad words on startup
 setTimeout(() => ChatSecurity.loadBadWords(), 3000);
 
@@ -6306,7 +7145,7 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`
 ╔════════════════════════════════════════════════════╗
-║   🎮 Red Strong Tetris Server v69.0                ║
+║   🎮 Red Strong Tetris Server v70.0                ║
 ║   ✅ Running on port ${PORT}                          ║
 ║   🌐 http://localhost:${PORT}                          ║
 ║   🔐 Admin: /${ADMIN_PANEL_PATH}.html              ║
