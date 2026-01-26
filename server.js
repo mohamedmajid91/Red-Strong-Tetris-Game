@@ -1,6 +1,6 @@
-// ============== Server.js v57.0 - Ultimate Edition ==============
-// التحسينات: Refresh Tokens, Activity Logs, WhatsApp, Enhanced Security
+// ============== Red Strong Tetris - Ultimate Edition ==============
 require('dotenv').config();
+const VERSION = require('./version');
 const express = require('express');
 const { Pool } = require('pg');
 const jwt = require('jsonwebtoken');
@@ -19,6 +19,10 @@ const twilio = require('twilio');
 const twilioClient = process.env.TWILIO_ACCOUNT_SID ? twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN) : null;
 const speakeasy = require('speakeasy');
 const QRCode = require('qrcode');
+
+// Print version banner on startup
+console.log(VERSION.banner);
+
 const sendWhatsApp = async (to, message) => {
     if (!twilioClient) return false;
     try {
@@ -4980,13 +4984,27 @@ app.get('/api/admin/backup-history', authenticateToken, async (req, res) => {
     }
 });
 
+// ============== Version API ==============
+app.get('/api/version', (req, res) => {
+    res.json({
+        success: true,
+        version: VERSION.full,
+        display: VERSION.display,
+        name: VERSION.name,
+        codename: VERSION.codename,
+        releaseDate: VERSION.releaseDate
+    });
+});
+
 // ============== Health Check ==============
 app.get('/api/health', async (req, res) => {
     try {
         await pool.query('SELECT 1');
         res.json({
             status: 'healthy',
-            version: '69.0.0',
+            version: VERSION.full,
+            display: VERSION.display,
+            name: VERSION.name,
             timestamp: new Date().toISOString(),
             database: 'connected',
             uptime: process.uptime()
@@ -4994,6 +5012,7 @@ app.get('/api/health', async (req, res) => {
     } catch (err) {
         res.status(500).json({
             status: 'unhealthy',
+            version: VERSION.full,
             database: 'disconnected'
         });
     }
@@ -8274,16 +8293,27 @@ app.get('/api/admin/security/export', authenticateToken, async (req, res) => {
     }
 });
 
+
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
+    // Save version to database
+    try {
+        await pool.query(`
+            INSERT INTO settings (key, value) VALUES ('app_version', $1)
+            ON CONFLICT (key) DO UPDATE SET value = $1
+        `, [VERSION.full]);
+    } catch (err) {
+        console.log('Could not save version to DB');
+    }
+    
     console.log(`
-╔════════════════════════════════════════════════════╗
-║   🎮 Red Strong Tetris Server v70.0                ║
-║   ✅ Running on port ${PORT}                          ║
-║   🌐 http://localhost:${PORT}                          ║
-║   🔐 Admin: /${ADMIN_PANEL_PATH}.html              ║
-║   📊 Health: /api/health                           ║
-╚════════════════════════════════════════════════════╝
+╔════════════════════════════════════════════════════════════╗
+║   🎮 ${VERSION.name} Server ${VERSION.display}              ║
+║   ✅ Running on port ${PORT}                                 ║
+║   🌐 http://localhost:${PORT}                                 ║
+║   🔐 Admin: /${ADMIN_PANEL_PATH}.html                       ║
+║   📊 Health: /api/health                                   ║
+║   🏷️  ${VERSION.codename}                                   ║
+╚════════════════════════════════════════════════════════════╝
     `);
 });
-

@@ -1,11 +1,13 @@
 {
-  "name": "tetris-game",
-  "version": "70.0.0",
-  "description": "Red Strong Tetris Game - Ultimate Edition with Chat System",
+  "name": "red-strong-tetris",
+  "version": "71.0.0",
+  "description": "Red Strong Tetris Game - Ultimate Security Edition",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "nodemon server.js"
+    "dev": "nodemon server.js",
+    "version": "node -e \"console.log(require('./version').display)\"",
+    "audit": "node security-audit.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

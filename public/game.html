@@ -1204,6 +1204,7 @@
         <!-- Footer -->
         <div class="home-footer">
             <p>© 2025 <span id="footer-company">Red Strong</span>. جميع الحقوق محفوظة</p>
+            <p style="font-size: 0.7rem; margin-top: 5px; opacity: 0.7;"><span id="game-version">loading...</span></p>
         </div>
     </div>
 
@@ -1472,7 +1473,19 @@
         };
         
         // Initialize particle system
-        document.addEventListener('DOMContentLoaded', () => ParticleSystem.init());
+        document.addEventListener('DOMContentLoaded', () => {
+            ParticleSystem.init();
+            // Load app version
+            fetch('/api/version')
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        const vEl = document.getElementById('game-version');
+                        if (vEl) vEl.textContent = data.display;
+                    }
+                })
+                .catch(() => {});
+        });
         
         // ========== GAME ==========
         const Game = {
