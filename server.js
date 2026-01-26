@@ -815,7 +815,154 @@ const initDB = async () => {
             )
         `);
 
-        // ============== NEW FEATURES V70 ==============
+        // ============== ADVANCED SECURITY SYSTEM V70 ==============
+        
+        // Fraud Detection Logs
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS fraud_logs (
+                id SERIAL PRIMARY KEY,
+                phone VARCHAR(20),
+                device_id VARCHAR(255),
+                ip_address VARCHAR(50),
+                fraud_type VARCHAR(50) NOT NULL,
+                severity VARCHAR(20) DEFAULT 'medium',
+                details JSONB,
+                score_before INTEGER,
+                score_after INTEGER,
+                action_taken VARCHAR(50),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
+        // Device Fingerprints
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS device_fingerprints (
+                id SERIAL PRIMARY KEY,
+                phone VARCHAR(20) NOT NULL,
+                fingerprint VARCHAR(255) NOT NULL,
+                user_agent TEXT,
+                screen_resolution VARCHAR(20),
+                timezone VARCHAR(50),
+                language VARCHAR(10),
+                platform VARCHAR(50),
+                trust_score INTEGER DEFAULT 100,
+                is_suspicious BOOLEAN DEFAULT false,
+                first_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(phone, fingerprint)
+            )
+        `);
+
+        // IP Reputation
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS ip_reputation (
+                id SERIAL PRIMARY KEY,
+                ip_address VARCHAR(50) UNIQUE NOT NULL,
+                trust_score INTEGER DEFAULT 100,
+                total_requests INTEGER DEFAULT 0,
+                fraud_attempts INTEGER DEFAULT 0,
+                is_vpn BOOLEAN DEFAULT false,
+                is_proxy BOOLEAN DEFAULT false,
+                is_blocked BOOLEAN DEFAULT false,
+                country VARCHAR(50),
+                city VARCHAR(100),
+                first_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
+        // Score History (for pattern detection)
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS score_history (
+                id SERIAL PRIMARY KEY,
+                phone VARCHAR(20) NOT NULL,
+                score INTEGER NOT NULL,
+                score_diff INTEGER,
+                game_duration INTEGER,
+                lines_cleared INTEGER,
+                level_reached INTEGER,
+                ip_address VARCHAR(50),
+                device_fingerprint VARCHAR(255),
+                is_valid BOOLEAN DEFAULT true,
+                validation_notes TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
+        // Player Risk Scores
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS player_risk (
+                id SERIAL PRIMARY KEY,
+                phone VARCHAR(20) UNIQUE NOT NULL,
+                risk_score INTEGER DEFAULT 0,
+                risk_level VARCHAR(20) DEFAULT 'low',
+                total_fraud_attempts INTEGER DEFAULT 0,
+                total_valid_games INTEGER DEFAULT 0,
+                avg_score_per_game REAL DEFAULT 0,
+                max_score INTEGER DEFAULT 0,
+                suspicious_patterns JSONB DEFAULT '[]',
+                is_banned BOOLEAN DEFAULT false,
+                ban_reason TEXT,
+                ban_expires_at TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
+        // Security Events
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS security_events (
+                id SERIAL PRIMARY KEY,
+                event_type VARCHAR(50) NOT NULL,
+                severity VARCHAR(20) DEFAULT 'info',
+                phone VARCHAR(20),
+                ip_address VARCHAR(50),
+                device_id VARCHAR(255),
+                description TEXT,
+                metadata JSONB,
+                resolved BOOLEAN DEFAULT false,
+                resolved_by VARCHAR(50),
+                resolved_at TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
+        // Rate Limit Violations
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS rate_limit_violations (
+                id SERIAL PRIMARY KEY,
+                ip_address VARCHAR(50) NOT NULL,
+                phone VARCHAR(20),
+                endpoint VARCHAR(100),
+                violation_count INTEGER DEFAULT 1,
+                window_start TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
+        // Admin Audit Log
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS admin_audit_log (
+                id SERIAL PRIMARY KEY,
+                admin_id INTEGER,
+                admin_username VARCHAR(50),
+                action VARCHAR(100) NOT NULL,
+                target_type VARCHAR(50),
+                target_id VARCHAR(50),
+                old_value JSONB,
+                new_value JSONB,
+                ip_address VARCHAR(50),
+                user_agent TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
+        // Security indexes
+        await pool.query('CREATE INDEX IF NOT EXISTS idx_fraud_logs_phone ON fraud_logs(phone)');
+        await pool.query('CREATE INDEX IF NOT EXISTS idx_fraud_logs_ip ON fraud_logs(ip_address)');
+        await pool.query('CREATE INDEX IF NOT EXISTS idx_fraud_logs_created ON fraud_logs(created_at DESC)');
+        await pool.query('CREATE INDEX IF NOT EXISTS idx_security_events_type ON security_events(event_type)');
+        await pool.query('CREATE INDEX IF NOT EXISTS idx_score_history_phone ON score_history(phone)');
+        await pool.query('CREATE INDEX IF NOT EXISTS idx_ip_reputation_ip ON ip_reputation(ip_address)');
         
         // Tournaments table
         await pool.query(`
@@ -7140,6 +7287,560 @@ app.get('/api/admin/backup/list', authenticateToken, async (req, res) => {
 
 // Load bad words on startup
 setTimeout(() => ChatSecurity.loadBadWords(), 3000);
+
+// ============== ADVANCED SECURITY SYSTEM ==============
+
+// Fraud Detection Class
+class FraudDetector {
+    static RISK_THRESHOLDS = {
+        low: 30,
+        medium: 60,
+        high: 80,
+        critical: 95
+    };
+
+    static SCORE_PATTERNS = {
+        maxScorePerMinute: 3000,
+        maxScorePerGame: 15000,
+        minGameDuration: 30,
+        maxGamesPerHour: 20,
+        suspiciousScoreJump: 5000
+    };
+
+    // Calculate risk score for a player
+    static async calculateRiskScore(phone) {
+        try {
+            let riskScore = 0;
+            const reasons = [];
+
+            // 1. Check fraud history
+            const fraudHistory = await pool.query(
+                'SELECT COUNT(*) as count FROM fraud_logs WHERE phone = $1',
+                [phone]
+            );
+            if (fraudHistory.rows[0].count > 0) {
+                riskScore += Math.min(fraudHistory.rows[0].count * 10, 40);
+                reasons.push(`${fraudHistory.rows[0].count} محاولات غش سابقة`);
+            }
+
+            // 2. Check score patterns
+            const scoreHistory = await pool.query(`
+                SELECT AVG(score_diff) as avg_diff, MAX(score_diff) as max_diff, 
+                       COUNT(*) as total_games, STDDEV(score_diff) as score_variance
+                FROM score_history WHERE phone = $1 AND created_at > NOW() - INTERVAL '7 days'
+            `, [phone]);
+
+            if (scoreHistory.rows[0].score_variance > 2000) {
+                riskScore += 20;
+                reasons.push('تباين كبير في النقاط');
+            }
+
+            // 3. Check multiple devices
+            const devices = await pool.query(
+                'SELECT COUNT(DISTINCT fingerprint) as count FROM device_fingerprints WHERE phone = $1',
+                [phone]
+            );
+            if (devices.rows[0].count > 3) {
+                riskScore += 15;
+                reasons.push(`${devices.rows[0].count} أجهزة مختلفة`);
+            }
+
+            // 4. Check multiple IPs
+            const ips = await pool.query(`
+                SELECT COUNT(DISTINCT ip_address) as count 
+                FROM score_history WHERE phone = $1 AND created_at > NOW() - INTERVAL '24 hours'
+            `, [phone]);
+            if (ips.rows[0].count > 5) {
+                riskScore += 15;
+                reasons.push(`${ips.rows[0].count} عناوين IP مختلفة`);
+            }
+
+            // 5. Check rapid score submissions
+            const rapidSubmissions = await pool.query(`
+                SELECT COUNT(*) as count FROM score_history 
+                WHERE phone = $1 AND created_at > NOW() - INTERVAL '1 hour'
+            `, [phone]);
+            if (rapidSubmissions.rows[0].count > this.SCORE_PATTERNS.maxGamesPerHour) {
+                riskScore += 25;
+                reasons.push('إرسال نقاط سريع جداً');
+            }
+
+            // Determine risk level
+            let riskLevel = 'low';
+            if (riskScore >= this.RISK_THRESHOLDS.critical) riskLevel = 'critical';
+            else if (riskScore >= this.RISK_THRESHOLDS.high) riskLevel = 'high';
+            else if (riskScore >= this.RISK_THRESHOLDS.medium) riskLevel = 'medium';
+
+            // Update player risk
+            await pool.query(`
+                INSERT INTO player_risk (phone, risk_score, risk_level, suspicious_patterns, updated_at)
+                VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
+                ON CONFLICT (phone) DO UPDATE SET 
+                    risk_score = $2, risk_level = $3, suspicious_patterns = $4, updated_at = CURRENT_TIMESTAMP
+            `, [phone, riskScore, riskLevel, JSON.stringify(reasons)]);
+
+            return { riskScore, riskLevel, reasons };
+        } catch (err) {
+            console.error('Risk calculation error:', err);
+            return { riskScore: 0, riskLevel: 'unknown', reasons: [] };
+        }
+    }
+
+    // Validate score submission
+    static async validateScore(phone, score, gameData, deviceInfo, ipAddress) {
+        const validationResult = {
+            isValid: true,
+            fraudType: null,
+            severity: null,
+            details: {}
+        };
+
+        try {
+            // 1. Check if player is banned
+            const playerRisk = await pool.query(
+                'SELECT is_banned, ban_reason FROM player_risk WHERE phone = $1',
+                [phone]
+            );
+            if (playerRisk.rows.length > 0 && playerRisk.rows[0].is_banned) {
+                validationResult.isValid = false;
+                validationResult.fraudType = 'BANNED_PLAYER';
+                validationResult.severity = 'critical';
+                validationResult.details.reason = playerRisk.rows[0].ban_reason;
+                return validationResult;
+            }
+
+            // 2. Check IP reputation
+            const ipRep = await pool.query('SELECT * FROM ip_reputation WHERE ip_address = $1', [ipAddress]);
+            if (ipRep.rows.length > 0 && ipRep.rows[0].is_blocked) {
+                validationResult.isValid = false;
+                validationResult.fraudType = 'BLOCKED_IP';
+                validationResult.severity = 'high';
+                return validationResult;
+            }
+
+            // 3. Check score reasonability
+            if (gameData) {
+                const { lines, level, time, moves } = gameData;
+                
+                // Lines vs Score check
+                const maxReasonableScore = (lines || 1) * 200 + (level || 1) * 150;
+                if (score > maxReasonableScore * 2) {
+                    validationResult.isValid = false;
+                    validationResult.fraudType = 'SCORE_MANIPULATION';
+                    validationResult.severity = 'high';
+                    validationResult.details = { score, maxReasonable: maxReasonableScore, lines, level };
+                    return validationResult;
+                }
+
+                // Time vs Score check
+                if (time && time < 30 && score > 500) {
+                    validationResult.isValid = false;
+                    validationResult.fraudType = 'IMPOSSIBLE_TIME';
+                    validationResult.severity = 'high';
+                    validationResult.details = { score, time };
+                    return validationResult;
+                }
+
+                // Score per second check
+                if (time && time > 0) {
+                    const scorePerSecond = score / time;
+                    if (scorePerSecond > 100) {
+                        validationResult.isValid = false;
+                        validationResult.fraudType = 'SCORE_RATE_EXCEEDED';
+                        validationResult.severity = 'medium';
+                        validationResult.details = { scorePerSecond, maxAllowed: 100 };
+                        return validationResult;
+                    }
+                }
+            }
+
+            // 4. Check for sudden score jumps
+            const lastScore = await pool.query(
+                'SELECT score FROM score_history WHERE phone = $1 ORDER BY created_at DESC LIMIT 1',
+                [phone]
+            );
+            if (lastScore.rows.length > 0) {
+                const scoreDiff = score - lastScore.rows[0].score;
+                if (scoreDiff > this.SCORE_PATTERNS.suspiciousScoreJump) {
+                    validationResult.fraudType = 'SUSPICIOUS_JUMP';
+                    validationResult.severity = 'medium';
+                    validationResult.details = { scoreDiff, threshold: this.SCORE_PATTERNS.suspiciousScoreJump };
+                    // Don't block, just flag
+                }
+            }
+
+            return validationResult;
+        } catch (err) {
+            console.error('Score validation error:', err);
+            return validationResult;
+        }
+    }
+
+    // Log fraud attempt
+    static async logFraud(phone, deviceId, ipAddress, fraudType, severity, details, scoreBefore, scoreAfter, actionTaken) {
+        try {
+            await pool.query(`
+                INSERT INTO fraud_logs (phone, device_id, ip_address, fraud_type, severity, details, score_before, score_after, action_taken)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            `, [phone, deviceId, ipAddress, fraudType, severity, JSON.stringify(details), scoreBefore, scoreAfter, actionTaken]);
+
+            // Update player fraud attempts
+            await pool.query(`
+                INSERT INTO player_risk (phone, total_fraud_attempts)
+                VALUES ($1, 1)
+                ON CONFLICT (phone) DO UPDATE SET 
+                    total_fraud_attempts = player_risk.total_fraud_attempts + 1,
+                    updated_at = CURRENT_TIMESTAMP
+            `, [phone]);
+
+            // Update IP reputation
+            await pool.query(`
+                INSERT INTO ip_reputation (ip_address, fraud_attempts, trust_score)
+                VALUES ($1, 1, 80)
+                ON CONFLICT (ip_address) DO UPDATE SET 
+                    fraud_attempts = ip_reputation.fraud_attempts + 1,
+                    trust_score = GREATEST(ip_reputation.trust_score - 10, 0),
+                    last_seen = CURRENT_TIMESTAMP
+            `, [ipAddress]);
+
+            // Create security event
+            await pool.query(`
+                INSERT INTO security_events (event_type, severity, phone, ip_address, device_id, description, metadata)
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
+            `, [fraudType, severity, phone, ipAddress, deviceId, `Fraud detected: ${fraudType}`, JSON.stringify(details)]);
+
+            // Auto-ban for critical cases
+            if (severity === 'critical') {
+                await this.banPlayer(phone, `Auto-ban: ${fraudType}`, 24);
+            }
+        } catch (err) {
+            console.error('Error logging fraud:', err);
+        }
+    }
+
+    // Ban player
+    static async banPlayer(phone, reason, hours = 24) {
+        try {
+            const banExpires = new Date(Date.now() + hours * 60 * 60 * 1000);
+            await pool.query(`
+                INSERT INTO player_risk (phone, is_banned, ban_reason, ban_expires_at)
+                VALUES ($1, true, $2, $3)
+                ON CONFLICT (phone) DO UPDATE SET 
+                    is_banned = true, ban_reason = $2, ban_expires_at = $3, updated_at = CURRENT_TIMESTAMP
+            `, [phone, reason, banExpires]);
+
+            await pool.query(`
+                INSERT INTO security_events (event_type, severity, phone, description)
+                VALUES ($1, $2, $3, $4)
+            `, ['PLAYER_BANNED', 'high', phone, reason]);
+        } catch (err) {
+            console.error('Error banning player:', err);
+        }
+    }
+
+    // Update device fingerprint
+    static async updateDeviceFingerprint(phone, fingerprint, deviceInfo) {
+        try {
+            await pool.query(`
+                INSERT INTO device_fingerprints (phone, fingerprint, user_agent, screen_resolution, timezone, language, platform)
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
+                ON CONFLICT (phone, fingerprint) DO UPDATE SET 
+                    last_seen = CURRENT_TIMESTAMP
+            `, [
+                phone, 
+                fingerprint, 
+                deviceInfo?.userAgent || '',
+                deviceInfo?.screenResolution || '',
+                deviceInfo?.timezone || '',
+                deviceInfo?.language || '',
+                deviceInfo?.platform || ''
+            ]);
+        } catch (err) {
+            console.error('Error updating fingerprint:', err);
+        }
+    }
+
+    // Record score history
+    static async recordScore(phone, score, scoreDiff, gameData, ipAddress, fingerprint, isValid, notes) {
+        try {
+            await pool.query(`
+                INSERT INTO score_history (phone, score, score_diff, game_duration, lines_cleared, level_reached, ip_address, device_fingerprint, is_valid, validation_notes)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+            `, [
+                phone, score, scoreDiff,
+                gameData?.time || 0,
+                gameData?.lines || 0,
+                gameData?.level || 1,
+                ipAddress, fingerprint, isValid, notes
+            ]);
+        } catch (err) {
+            console.error('Error recording score:', err);
+        }
+    }
+}
+
+// ===== SECURITY API ENDPOINTS =====
+
+// Get fraud dashboard
+app.get('/api/admin/security/dashboard', authenticateToken, async (req, res) => {
+    try {
+        const stats = await pool.query(`
+            SELECT 
+                (SELECT COUNT(*) FROM fraud_logs WHERE created_at > NOW() - INTERVAL '24 hours') as fraud_24h,
+                (SELECT COUNT(*) FROM fraud_logs WHERE created_at > NOW() - INTERVAL '7 days') as fraud_7d,
+                (SELECT COUNT(*) FROM player_risk WHERE is_banned = true) as banned_players,
+                (SELECT COUNT(*) FROM player_risk WHERE risk_level = 'high' OR risk_level = 'critical') as high_risk_players,
+                (SELECT COUNT(*) FROM ip_reputation WHERE is_blocked = true) as blocked_ips,
+                (SELECT COUNT(*) FROM security_events WHERE resolved = false) as pending_events
+        `);
+
+        const recentFraud = await pool.query(`
+            SELECT * FROM fraud_logs ORDER BY created_at DESC LIMIT 20
+        `);
+
+        const highRiskPlayers = await pool.query(`
+            SELECT pr.*, p.name, p.score 
+            FROM player_risk pr
+            LEFT JOIN players p ON pr.phone = p.phone
+            WHERE pr.risk_level IN ('high', 'critical')
+            ORDER BY pr.risk_score DESC LIMIT 20
+        `);
+
+        const pendingEvents = await pool.query(`
+            SELECT * FROM security_events WHERE resolved = false ORDER BY created_at DESC LIMIT 20
+        `);
+
+        res.json({
+            success: true,
+            stats: stats.rows[0],
+            recentFraud: recentFraud.rows,
+            highRiskPlayers: highRiskPlayers.rows,
+            pendingEvents: pendingEvents.rows
+        });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Get fraud logs with filters
+app.get('/api/admin/security/fraud-logs', authenticateToken, async (req, res) => {
+    try {
+        const { phone, fraudType, severity, startDate, endDate, limit = 100 } = req.query;
+        
+        let query = 'SELECT * FROM fraud_logs WHERE 1=1';
+        const params = [];
+        let paramCount = 0;
+
+        if (phone) {
+            params.push(phone);
+            query += ` AND phone = $${++paramCount}`;
+        }
+        if (fraudType) {
+            params.push(fraudType);
+            query += ` AND fraud_type = $${++paramCount}`;
+        }
+        if (severity) {
+            params.push(severity);
+            query += ` AND severity = $${++paramCount}`;
+        }
+        if (startDate) {
+            params.push(startDate);
+            query += ` AND created_at >= $${++paramCount}`;
+        }
+        if (endDate) {
+            params.push(endDate);
+            query += ` AND created_at <= $${++paramCount}`;
+        }
+
+        params.push(limit);
+        query += ` ORDER BY created_at DESC LIMIT $${++paramCount}`;
+
+        const result = await pool.query(query, params);
+        res.json({ success: true, logs: result.rows });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Get player security profile
+app.get('/api/admin/security/player/:phone', authenticateToken, async (req, res) => {
+    try {
+        const { phone } = req.params;
+
+        const player = await pool.query('SELECT * FROM players WHERE phone = $1', [phone]);
+        const risk = await pool.query('SELECT * FROM player_risk WHERE phone = $1', [phone]);
+        const devices = await pool.query('SELECT * FROM device_fingerprints WHERE phone = $1', [phone]);
+        const fraudHistory = await pool.query('SELECT * FROM fraud_logs WHERE phone = $1 ORDER BY created_at DESC LIMIT 20', [phone]);
+        const scoreHistory = await pool.query('SELECT * FROM score_history WHERE phone = $1 ORDER BY created_at DESC LIMIT 50', [phone]);
+
+        // Calculate real-time risk
+        const riskAnalysis = await FraudDetector.calculateRiskScore(phone);
+
+        res.json({
+            success: true,
+            player: player.rows[0],
+            risk: risk.rows[0] || { risk_score: 0, risk_level: 'low' },
+            riskAnalysis,
+            devices: devices.rows,
+            fraudHistory: fraudHistory.rows,
+            scoreHistory: scoreHistory.rows
+        });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Ban/Unban player
+app.post('/api/admin/security/ban', authenticateToken, async (req, res) => {
+    try {
+        const { phone, reason, hours } = req.body;
+        await FraudDetector.banPlayer(phone, reason, hours || 24);
+        await logActivity(req.user?.id, req.user?.username, 'ban_player', `${phone}: ${reason}`, req.ip);
+        res.json({ success: true, message: 'تم حظر اللاعب' });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+app.post('/api/admin/security/unban', authenticateToken, async (req, res) => {
+    try {
+        const { phone } = req.body;
+        await pool.query(
+            'UPDATE player_risk SET is_banned = false, ban_reason = NULL, ban_expires_at = NULL WHERE phone = $1',
+            [phone]
+        );
+        await logActivity(req.user?.id, req.user?.username, 'unban_player', phone, req.ip);
+        res.json({ success: true, message: 'تم رفع الحظر' });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Block/Unblock IP
+app.post('/api/admin/security/block-ip', authenticateToken, async (req, res) => {
+    try {
+        const { ip, reason } = req.body;
+        await pool.query(`
+            INSERT INTO ip_reputation (ip_address, is_blocked, trust_score)
+            VALUES ($1, true, 0)
+            ON CONFLICT (ip_address) DO UPDATE SET is_blocked = true, trust_score = 0
+        `, [ip]);
+        await logActivity(req.user?.id, req.user?.username, 'block_ip', `${ip}: ${reason}`, req.ip);
+        res.json({ success: true, message: 'تم حظر الـ IP' });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+app.post('/api/admin/security/unblock-ip', authenticateToken, async (req, res) => {
+    try {
+        const { ip } = req.body;
+        await pool.query('UPDATE ip_reputation SET is_blocked = false WHERE ip_address = $1', [ip]);
+        await logActivity(req.user?.id, req.user?.username, 'unblock_ip', ip, req.ip);
+        res.json({ success: true, message: 'تم رفع الحظر' });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Resolve security event
+app.post('/api/admin/security/resolve-event', authenticateToken, async (req, res) => {
+    try {
+        const { eventId, resolution } = req.body;
+        await pool.query(
+            'UPDATE security_events SET resolved = true, resolved_by = $1, resolved_at = CURRENT_TIMESTAMP WHERE id = $2',
+            [req.user?.username, eventId]
+        );
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Get IP reputation list
+app.get('/api/admin/security/ip-reputation', authenticateToken, async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT * FROM ip_reputation 
+            WHERE fraud_attempts > 0 OR is_blocked = true 
+            ORDER BY fraud_attempts DESC, trust_score ASC 
+            LIMIT 100
+        `);
+        res.json({ success: true, ips: result.rows });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Generate security report
+app.get('/api/admin/security/report', authenticateToken, async (req, res) => {
+    try {
+        const { startDate, endDate } = req.query;
+        const start = startDate || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+        const end = endDate || new Date().toISOString();
+
+        const fraudByType = await pool.query(`
+            SELECT fraud_type, COUNT(*) as count, severity
+            FROM fraud_logs WHERE created_at BETWEEN $1 AND $2
+            GROUP BY fraud_type, severity ORDER BY count DESC
+        `, [start, end]);
+
+        const fraudByDay = await pool.query(`
+            SELECT DATE(created_at) as date, COUNT(*) as count
+            FROM fraud_logs WHERE created_at BETWEEN $1 AND $2
+            GROUP BY DATE(created_at) ORDER BY date
+        `, [start, end]);
+
+        const topOffenders = await pool.query(`
+            SELECT phone, COUNT(*) as fraud_count
+            FROM fraud_logs WHERE created_at BETWEEN $1 AND $2
+            GROUP BY phone ORDER BY fraud_count DESC LIMIT 10
+        `, [start, end]);
+
+        const summary = await pool.query(`
+            SELECT 
+                COUNT(*) as total_fraud,
+                COUNT(DISTINCT phone) as unique_offenders,
+                COUNT(DISTINCT ip_address) as unique_ips
+            FROM fraud_logs WHERE created_at BETWEEN $1 AND $2
+        `, [start, end]);
+
+        res.json({
+            success: true,
+            report: {
+                period: { start, end },
+                summary: summary.rows[0],
+                fraudByType: fraudByType.rows,
+                fraudByDay: fraudByDay.rows,
+                topOffenders: topOffenders.rows
+            }
+        });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Export fraud data
+app.get('/api/admin/security/export', authenticateToken, async (req, res) => {
+    try {
+        const logs = await pool.query(`
+            SELECT phone, device_id, ip_address, fraud_type, severity, action_taken, 
+                   TO_CHAR(created_at, 'YYYY-MM-DD HH24:MI:SS') as datetime
+            FROM fraud_logs ORDER BY created_at DESC
+        `);
+
+        let csv = 'الهاتف,الجهاز,IP,نوع الغش,الخطورة,الإجراء,التاريخ\n';
+        logs.rows.forEach(log => {
+            csv += `${log.phone},${log.device_id || ''},${log.ip_address},${log.fraud_type},${log.severity},${log.action_taken || ''},${log.datetime}\n`;
+        });
+
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', 'attachment; filename=fraud_report.csv');
+        res.send('\uFEFF' + csv);
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
