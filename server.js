@@ -40,12 +40,33 @@ const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'A1bC3dE5fG7hI9jK0l
 const ADMIN_PANEL_PATH = process.env.ADMIN_PANEL_PATH || 'ctrl_x7k9m2p4';
 
 // Enhanced Security Middleware
+// Enhanced Security with CSP
 app.use(helmet({
-    contentSecurityPolicy: false,
+    contentSecurityPolicy: {
+        directives: {
+            defaultSrc: ["'self'"],
+            scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://cdnjs.cloudflare.com", "https://cdn.jsdelivr.net"],
+            styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://cdnjs.cloudflare.com"],
+            imgSrc: ["'self'", "data:", "blob:", "https:"],
+            fontSrc: ["'self'", "https://fonts.gstatic.com", "https://cdnjs.cloudflare.com"],
+            connectSrc: ["'self'", "wss:", "ws:"],
+            mediaSrc: ["'self'"],
+            objectSrc: ["'none'"],
+            frameSrc: ["'none'"],
+            baseUri: ["'self'"],
+            formAction: ["'self'"],
+            upgradeInsecureRequests: []
+        }
+    },
     crossOriginEmbedderPolicy: false,
     xssFilter: true,
     noSniff: true,
-    referrerPolicy: { policy: 'strict-origin-when-cross-origin' }
+    referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+    hsts: {
+        maxAge: 31536000,
+        includeSubDomains: true,
+        preload: true
+    }
 }));
 
 app.use(cors({
@@ -57,59 +78,284 @@ app.use(cors({
 
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
-app.use(express.static('public'));
+
+// ============== SECURE STATIC FILE SERVING ==============
+// Detect UTF-8 overlong encoding attacks
+const detectOverlongEncoding = (str) => {
+    // Common overlong encoding patterns used in path traversal
+    const overlongPatterns = [
+        /%c0%ae/gi,     // Overlong encoding for '.'
+        /%c0%af/gi,     // Overlong encoding for '/'
+        /%c1%9c/gi,     // Another overlong for '\'
+        /%c0%2f/gi,     // Mixed encoding
+        /%c0%5c/gi,     // Mixed encoding for '\'
+        /%e0%80%ae/gi,  // 3-byte overlong for '.'
+        /%e0%80%af/gi,  // 3-byte overlong for '/'
+        /%f0%80%80%ae/gi, // 4-byte overlong
+        /%f0%80%80%af/gi  // 4-byte overlong
+    ];
+    
+    for (const pattern of overlongPatterns) {
+        if (pattern.test(str)) {
+            return true;
+        }
+    }
+    return false;
+};
+
+// Secure Static File Serving - Prevent Path Traversal
+app.use('/uploads', (req, res, next) => {
+    try {
+        // Decode URL and check for path traversal
+        let decodedPath;
+        try {
+            decodedPath = decodeURIComponent(req.path);
+        } catch (e) {
+            // Invalid encoding - block it
+            return res.status(400).json({ error: 'Invalid URL encoding' });
+        }
+        
+        // Check for UTF-8 overlong encoding attacks
+        if (detectOverlongEncoding(req.path) || detectOverlongEncoding(req.url)) {
+            pool.query(`
+                INSERT INTO security_events (event_type, severity, ip_address, description, metadata)
+                VALUES ($1, $2, $3, $4, $5)
+            `, ['OVERLONG_ENCODING_ATTACK', 'critical', req.ip, 'محاولة هجوم UTF-8 Overlong Encoding', JSON.stringify({
+                path: req.path,
+                url: req.url,
+                userAgent: req.headers['user-agent']
+            })]).catch(() => {});
+            
+            return res.status(403).json({ error: 'Forbidden - Invalid encoding detected' });
+        }
+        
+        // Block path traversal attempts (expanded patterns)
+        const dangerousPatterns = [
+            '..', '//', '\\\\', '\0', '%00',
+            '%2e%2e', '%252e', '%2f', '%5c',
+            '....', './', '.\\',
+            'etc/passwd', 'etc/shadow',
+            'windows/system', 'boot.ini'
+        ];
+        
+        const lowerPath = decodedPath.toLowerCase();
+        const lowerUrl = req.url.toLowerCase();
+        
+        for (const pattern of dangerousPatterns) {
+            if (lowerPath.includes(pattern) || lowerUrl.includes(pattern)) {
+                pool.query(`
+                    INSERT INTO security_events (event_type, severity, ip_address, description, metadata)
+                    VALUES ($1, $2, $3, $4, $5)
+                `, ['PATH_TRAVERSAL_STATIC', 'high', req.ip, 'محاولة Path Traversal على الملفات', JSON.stringify({
+                    path: req.path,
+                    decodedPath: decodedPath,
+                    pattern: pattern,
+                    userAgent: req.headers['user-agent']
+                })]).catch(() => {});
+                
+                return res.status(403).json({ error: 'Forbidden' });
+            }
+        }
+        
+        // Only allow specific extensions
+        const ext = path.extname(decodedPath).toLowerCase();
+        const allowedExt = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.ico'];
+        
+        if (ext && !allowedExt.includes(ext)) {
+            return res.status(403).json({ error: 'File type not allowed' });
+        }
+        
+        next();
+    } catch (err) {
+        // Any error in security check = block request
+        return res.status(403).json({ error: 'Security check failed' });
+    }
+}, express.static(path.join(__dirname, 'public/uploads'), {
+    dotfiles: 'deny',
+    index: false,
+    maxAge: '1d'
+}));
+
+app.use(express.static('public', {
+    dotfiles: 'deny',
+    index: 'index.html'
+}));
 
 // Favicon handler (prevent 404)
 app.get('/favicon.ico', (req, res) => {
     res.status(204).end();
 });
 
-// Input Sanitization Middleware
+// ============== ADVANCED INPUT SANITIZATION ==============
 const sanitizeInput = (req, res, next) => {
-    const sanitize = (obj) => {
+    const sanitize = (obj, depth = 0) => {
+        // Prevent deep recursion attacks
+        if (depth > 10) return obj;
+        
         if (typeof obj === 'string') {
-            return obj.replace(/<[^>]*>/g, '').replace(/[<>\"\'`;]/g, '').trim();
+            // Remove null bytes
+            obj = obj.replace(/\0/g, '');
+            
+            // Remove path traversal attempts
+            obj = obj.replace(/\.\.\//g, '').replace(/\.\.%2f/gi, '').replace(/\.\.%5c/gi, '');
+            
+            // Remove HTML tags (XSS prevention)
+            obj = obj.replace(/<[^>]*>/g, '');
+            
+            // Remove dangerous characters
+            obj = obj.replace(/[<>\"\'`;\\]/g, '');
+            
+            // Remove SQL injection attempts
+            obj = obj.replace(/('|"|;|--|\/\*|\*\/|xp_|sp_|0x)/gi, '');
+            
+            // Trim whitespace
+            obj = obj.trim();
+            
+            // Limit string length
+            if (obj.length > 10000) {
+                obj = obj.substring(0, 10000);
+            }
+            
+            return obj;
         }
+        
+        if (Array.isArray(obj)) {
+            // Limit array size
+            if (obj.length > 1000) {
+                obj = obj.slice(0, 1000);
+            }
+            return obj.map(item => sanitize(item, depth + 1));
+        }
+        
         if (typeof obj === 'object' && obj !== null) {
+            const keys = Object.keys(obj);
+            // Limit number of keys
+            if (keys.length > 100) {
+                const limitedKeys = keys.slice(0, 100);
+                const newObj = {};
+                limitedKeys.forEach(key => {
+                    newObj[sanitize(key, depth + 1)] = sanitize(obj[key], depth + 1);
+                });
+                return newObj;
+            }
+            
             for (let key in obj) {
-                obj[key] = sanitize(obj[key]);
+                // Sanitize keys too
+                const sanitizedKey = sanitize(key, depth + 1);
+                if (sanitizedKey !== key) {
+                    obj[sanitizedKey] = obj[key];
+                    delete obj[key];
+                    key = sanitizedKey;
+                }
+                obj[key] = sanitize(obj[key], depth + 1);
             }
         }
+        
         return obj;
     };
+    
+    // Sanitize all inputs
     if (req.body) req.body = sanitize(req.body);
     if (req.query) req.query = sanitize(req.query);
     if (req.params) req.params = sanitize(req.params);
+    
+    // Check for suspicious patterns in URL
+    const suspiciousPatterns = [
+        /\.\./,                    // Path traversal
+        /\/etc\/passwd/i,          // Linux password file
+        /\/windows\/system/i,      // Windows system
+        /\bselect\b.*\bfrom\b/i,   // SQL injection
+        /\bunion\b.*\bselect\b/i,  // SQL injection
+        /<script/i,                // XSS
+        /javascript:/i,            // XSS
+        /onerror\s*=/i,           // XSS
+        /onload\s*=/i             // XSS
+    ];
+    
+    const fullUrl = req.originalUrl + JSON.stringify(req.body || {});
+    
+    for (const pattern of suspiciousPatterns) {
+        if (pattern.test(fullUrl)) {
+            // Log attack attempt
+            pool.query(`
+                INSERT INTO security_events (event_type, severity, ip_address, description, metadata)
+                VALUES ($1, $2, $3, $4, $5)
+            `, ['INJECTION_ATTEMPT', 'high', req.ip, 'محاولة حقن ضار', JSON.stringify({
+                url: req.originalUrl,
+                method: req.method,
+                pattern: pattern.toString(),
+                userAgent: req.headers['user-agent']
+            })]).catch(() => {});
+            
+            return res.status(403).json({ error: 'طلب مشبوه' });
+        }
+    }
+    
     next();
 };
 app.use(sanitizeInput);
 
 // Rate Limiting - Enhanced
+// Rate Limiting - Enhanced
 const limiter = rateLimit({ 
-    windowMs: 15 * 60 * 1000,
-    max: 500, // زيادة الحد
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 300, // 300 requests per 15 minutes
     message: { error: 'طلبات كثيرة، حاول لاحقاً' },
     standardHeaders: true,
     legacyHeaders: false,
+    keyGenerator: (req) => {
+        // Use X-Forwarded-For if behind proxy, otherwise use IP
+        return req.headers['x-forwarded-for']?.split(',')[0] || req.ip || req.connection.remoteAddress;
+    },
     skip: (req) => {
         // Skip rate limit for admin routes if authenticated
         return req.path.startsWith('/api/admin/') && req.headers.authorization;
+    },
+    handler: (req, res) => {
+        // Log rate limit violation
+        pool.query(`
+            INSERT INTO rate_limit_violations (ip_address, phone, endpoint)
+            VALUES ($1, $2, $3)
+        `, [req.ip, req.body?.phone || null, req.path]).catch(() => {});
+        
+        res.status(429).json({ error: 'طلبات كثيرة، حاول لاحقاً', code: 'RATE_LIMITED' });
     }
 });
 app.use('/api/', limiter);
 
-// Admin limiter - أكثر سماحية
+// Strict limiter for sensitive endpoints
+const strictLimiter = rateLimit({
+    windowMs: 60 * 1000, // 1 minute
+    max: 10, // 10 requests per minute
+    message: { error: 'طلبات كثيرة جداً' },
+    standardHeaders: true
+});
+
+// Admin limiter
 const adminLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 1000, // حد عالي للأدمن
+    max: 1000,
     message: { error: 'طلبات كثيرة' }
 });
 
+// Login limiter - strict
 const loginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 5, // زيادة من 3 إلى 5
+    max: 5,
     message: { error: 'محاولات تسجيل دخول كثيرة، انتظر 15 دقيقة' },
-    skipSuccessfulRequests: true
+    skipSuccessfulRequests: true,
+    handler: (req, res) => {
+        // Log failed login attempt
+        pool.query(`
+            INSERT INTO security_events (event_type, severity, ip_address, description, metadata)
+            VALUES ($1, $2, $3, $4, $5)
+        `, ['LOGIN_RATE_LIMITED', 'medium', req.ip, 'تجاوز حد محاولات تسجيل الدخول', JSON.stringify({
+            username: req.body?.username,
+            userAgent: req.headers['user-agent']
+        })]).catch(() => {});
+        
+        res.status(429).json({ error: 'محاولات تسجيل دخول كثيرة، انتظر 15 دقيقة' });
+    }
 });
 
 // حماية من البوتات - تسجيل اللاعبين
@@ -126,37 +372,130 @@ const scoreLimiter = rateLimit({
     message: { error: 'طلبات كثيرة' }
 });
 
-const strictLimiter = rateLimit({
-    windowMs: 60 * 1000,
-    max: 10,
-    message: { error: 'طلبات كثيرة جداً' }
-});
-
 // File Upload Config
+// ============== SECURE FILE UPLOAD ==============
+const UPLOAD_DIR = path.resolve('./public/uploads');
+
+// Ensure upload directory exists and is secure
+if (!fs.existsSync(UPLOAD_DIR)) {
+    fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+}
+
+// Secure filename sanitizer
+const sanitizeFilename = (filename) => {
+    // Remove path traversal attempts
+    let safe = filename
+        .replace(/\.\./g, '')           // Remove ..
+        .replace(/\//g, '')             // Remove /
+        .replace(/\\/g, '')             // Remove \
+        .replace(/\0/g, '')             // Remove null bytes
+        .replace(/%2e/gi, '')           // Remove URL encoded .
+        .replace(/%2f/gi, '')           // Remove URL encoded /
+        .replace(/%5c/gi, '')           // Remove URL encoded \
+        .replace(/%00/gi, '')           // Remove URL encoded null
+        .replace(/[<>:"|?*]/g, '')      // Remove Windows invalid chars
+        .replace(/[\x00-\x1f\x80-\x9f]/g, ''); // Remove control chars
+    
+    // Only allow alphanumeric, dash, underscore, dot
+    safe = safe.replace(/[^a-zA-Z0-9._-]/g, '');
+    
+    // Prevent hidden files
+    if (safe.startsWith('.')) {
+        safe = safe.substring(1);
+    }
+    
+    return safe || 'file';
+};
+
+// Validate file extension strictly
+const validateExtension = (filename) => {
+    const ext = path.extname(filename).toLowerCase();
+    const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+    return allowedExtensions.includes(ext);
+};
+
+// Check for magic bytes (file signature)
+const validateMagicBytes = (buffer) => {
+    if (!buffer || buffer.length < 4) return false;
+    
+    const signatures = {
+        jpg: [0xFF, 0xD8, 0xFF],
+        png: [0x89, 0x50, 0x4E, 0x47],
+        gif: [0x47, 0x49, 0x46, 0x38],
+        webp: [0x52, 0x49, 0x46, 0x46]
+    };
+    
+    // Check JPEG
+    if (buffer[0] === signatures.jpg[0] && buffer[1] === signatures.jpg[1] && buffer[2] === signatures.jpg[2]) {
+        return 'image/jpeg';
+    }
+    // Check PNG
+    if (buffer[0] === signatures.png[0] && buffer[1] === signatures.png[1] && buffer[2] === signatures.png[2] && buffer[3] === signatures.png[3]) {
+        return 'image/png';
+    }
+    // Check GIF
+    if (buffer[0] === signatures.gif[0] && buffer[1] === signatures.gif[1] && buffer[2] === signatures.gif[2] && buffer[3] === signatures.gif[3]) {
+        return 'image/gif';
+    }
+    // Check WebP (RIFF....WEBP)
+    if (buffer[0] === signatures.webp[0] && buffer[1] === signatures.webp[1] && buffer[2] === signatures.webp[2] && buffer[3] === signatures.webp[3]) {
+        if (buffer.length >= 12 && buffer[8] === 0x57 && buffer[9] === 0x45 && buffer[10] === 0x42 && buffer[11] === 0x50) {
+            return 'image/webp';
+        }
+    }
+    
+    return false;
+};
+
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        const dir = './public/uploads';
-        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-        cb(null, dir);
+        cb(null, UPLOAD_DIR);
     },
     filename: (req, file, cb) => {
-        const ext = path.extname(file.originalname);
-        cb(null, `${Date.now()}${ext}`);
+        // Generate secure random filename
+        const randomName = crypto.randomBytes(16).toString('hex');
+        const ext = path.extname(file.originalname).toLowerCase();
+        
+        // Only allow specific extensions
+        if (!['.jpg', '.jpeg', '.png', '.gif', '.webp'].includes(ext)) {
+            return cb(new Error('امتداد الملف غير مسموح'));
+        }
+        
+        cb(null, `${Date.now()}_${randomName}${ext}`);
     }
 });
 
 const upload = multer({ 
     storage,
-    limits: { fileSize: 5 * 1024 * 1024 },
+    limits: { 
+        fileSize: 5 * 1024 * 1024,  // 5MB
+        files: 1                     // Only 1 file at a time
+    },
     fileFilter: (req, file, cb) => {
-        const allowed = /jpeg|jpg|png|gif|webp/;
-        const ext = allowed.test(path.extname(file.originalname).toLowerCase());
-        const mime = allowed.test(file.mimetype);
-        if (ext && mime && file.mimetype.startsWith('image/')) {
-            cb(null, true);
-        } else {
-            cb(new Error('صيغة الملف غير مدعومة'));
+        // 1. Check extension
+        const ext = path.extname(file.originalname).toLowerCase();
+        const allowedExt = /\.(jpeg|jpg|png|gif|webp)$/i;
+        if (!allowedExt.test(file.originalname)) {
+            return cb(new Error('امتداد الملف غير مدعوم'));
         }
+        
+        // 2. Check MIME type
+        const allowedMime = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+        if (!allowedMime.includes(file.mimetype)) {
+            return cb(new Error('نوع الملف غير مدعوم'));
+        }
+        
+        // 3. Check for path traversal in original name
+        if (file.originalname.includes('..') || file.originalname.includes('/') || file.originalname.includes('\\')) {
+            return cb(new Error('اسم الملف غير صالح'));
+        }
+        
+        // 4. Check for null bytes
+        if (file.originalname.includes('\0') || file.originalname.includes('%00')) {
+            return cb(new Error('اسم الملف يحتوي على أحرف غير صالحة'));
+        }
+        
+        cb(null, true);
     }
 });
 
@@ -2430,14 +2769,107 @@ app.post('/api/admin/reset-all', authenticateToken, async (req, res) => {
 });
 
 // Admin - Upload Image
-app.post('/api/admin/upload', authenticateToken, upload.single('image'), (req, res) => {
+// Secure File Upload Endpoint
+app.post('/api/admin/upload', authenticateToken, upload.single('image'), async (req, res) => {
     try {
         if (!req.file) {
             return res.status(400).json({ error: 'لم يتم رفع ملف' });
         }
-        res.json({ success: true, filename: req.file.filename, path: '/uploads/' + req.file.filename });
+        
+        const filePath = path.join(UPLOAD_DIR, req.file.filename);
+        
+        // 1. Verify file exists and is within upload directory (prevent path traversal)
+        const realPath = fs.realpathSync(filePath);
+        const realUploadDir = fs.realpathSync(UPLOAD_DIR);
+        
+        if (!realPath.startsWith(realUploadDir)) {
+            // Path traversal attempt detected!
+            fs.unlinkSync(filePath);
+            
+            // Log security event
+            await pool.query(`
+                INSERT INTO security_events (event_type, severity, ip_address, description, metadata)
+                VALUES ($1, $2, $3, $4, $5)
+            `, ['PATH_TRAVERSAL_ATTEMPT', 'critical', req.ip, 'محاولة اختراق Path Traversal', JSON.stringify({
+                filename: req.file.originalname,
+                attemptedPath: filePath
+            })]);
+            
+            return res.status(400).json({ error: 'مسار الملف غير صالح' });
+        }
+        
+        // 2. Verify magic bytes (file signature)
+        const fileBuffer = fs.readFileSync(filePath);
+        const detectedMime = validateMagicBytes(fileBuffer);
+        
+        if (!detectedMime) {
+            // File content doesn't match image signature
+            fs.unlinkSync(filePath);
+            
+            await pool.query(`
+                INSERT INTO security_events (event_type, severity, ip_address, description, metadata)
+                VALUES ($1, $2, $3, $4, $5)
+            `, ['MALICIOUS_FILE_UPLOAD', 'high', req.ip, 'محاولة رفع ملف مشبوه', JSON.stringify({
+                filename: req.file.originalname,
+                claimedMime: req.file.mimetype
+            })]);
+            
+            return res.status(400).json({ error: 'محتوى الملف لا يتطابق مع نوع الصورة' });
+        }
+        
+        // 3. Check for embedded PHP/JS code in image
+        const fileContent = fileBuffer.toString('utf8', 0, Math.min(fileBuffer.length, 10000));
+        const dangerousPatterns = [
+            /<\?php/i,
+            /<\?=/i,
+            /<script/i,
+            /<%/,
+            /eval\s*\(/i,
+            /exec\s*\(/i,
+            /system\s*\(/i,
+            /passthru\s*\(/i,
+            /shell_exec/i,
+            /base64_decode/i,
+            /file_get_contents/i,
+            /file_put_contents/i
+        ];
+        
+        for (const pattern of dangerousPatterns) {
+            if (pattern.test(fileContent)) {
+                fs.unlinkSync(filePath);
+                
+                await pool.query(`
+                    INSERT INTO security_events (event_type, severity, ip_address, description, metadata)
+                    VALUES ($1, $2, $3, $4, $5)
+                `, ['CODE_INJECTION_ATTEMPT', 'critical', req.ip, 'محاولة حقن كود ضار في صورة', JSON.stringify({
+                    filename: req.file.originalname,
+                    patternDetected: pattern.toString()
+                })]);
+                
+                return res.status(400).json({ error: 'الملف يحتوي على محتوى ضار' });
+            }
+        }
+        
+        // 4. Log successful upload
+        await pool.query(`
+            INSERT INTO activity_logs (user_id, username, action, details, ip_address)
+            VALUES ($1, $2, $3, $4, $5)
+        `, [req.user?.id, req.user?.username, 'file_upload', req.file.filename, req.ip]);
+        
+        res.json({ 
+            success: true, 
+            filename: req.file.filename, 
+            path: '/uploads/' + req.file.filename,
+            size: req.file.size
+        });
     } catch (err) {
-        console.error(err);
+        console.error('Upload error:', err);
+        
+        // Clean up file if it exists
+        if (req.file && req.file.path) {
+            try { fs.unlinkSync(req.file.path); } catch (e) {}
+        }
+        
         res.status(500).json({ error: 'خطأ في رفع الملف' });
     }
 });
