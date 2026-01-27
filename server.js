@@ -1,6 +1,6 @@
-// ============== Red Strong Tetris - Ultimate Edition ==============
+// ============== Server.js v57.0 - Ultimate Edition ==============
+// التحسينات: Refresh Tokens, Activity Logs, WhatsApp, Enhanced Security
 require('dotenv').config();
-const VERSION = require('./version');
 const express = require('express');
 const { Pool } = require('pg');
 const jwt = require('jsonwebtoken');
@@ -19,10 +19,6 @@ const twilio = require('twilio');
 const twilioClient = process.env.TWILIO_ACCOUNT_SID ? twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN) : null;
 const speakeasy = require('speakeasy');
 const QRCode = require('qrcode');
-
-// Print version banner on startup
-console.log(VERSION.banner);
-
 const sendWhatsApp = async (to, message) => {
     if (!twilioClient) return false;
     try {
@@ -45,32 +41,13 @@ const ADMIN_PANEL_PATH = process.env.ADMIN_PANEL_PATH || 'ctrl_x7k9m2p4';
 
 // Enhanced Security Middleware
 // Enhanced Security with CSP
+// Helmet disabled for HTTP compatibility
 app.use(helmet({
-    contentSecurityPolicy: {
-        directives: {
-            defaultSrc: ["'self'"],
-            scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://cdnjs.cloudflare.com", "https://cdn.jsdelivr.net"],
-            styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://cdnjs.cloudflare.com"],
-            imgSrc: ["'self'", "data:", "blob:", "https:"],
-            fontSrc: ["'self'", "https://fonts.gstatic.com", "https://cdnjs.cloudflare.com"],
-            connectSrc: ["'self'", "wss:", "ws:"],
-            mediaSrc: ["'self'"],
-            objectSrc: ["'none'"],
-            frameSrc: ["'none'"],
-            baseUri: ["'self'"],
-            formAction: ["'self'"],
-            upgradeInsecureRequests: []
-        }
-    },
-    crossOriginEmbedderPolicy: false,
-    xssFilter: true,
-    noSniff: true,
-    referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
-    hsts: {
-        maxAge: 31536000,
-        includeSubDomains: true,
-        preload: true
-    }
+    contentSecurityPolicy: false,
+    crossOriginOpenerPolicy: false,
+    crossOriginResourcePolicy: false,
+    originAgentCluster: false,
+    hsts: false
 }));
 
 app.use(cors({
@@ -4984,27 +4961,13 @@ app.get('/api/admin/backup-history', authenticateToken, async (req, res) => {
     }
 });
 
-// ============== Version API ==============
-app.get('/api/version', (req, res) => {
-    res.json({
-        success: true,
-        version: VERSION.full,
-        display: VERSION.display,
-        name: VERSION.name,
-        codename: VERSION.codename,
-        releaseDate: VERSION.releaseDate
-    });
-});
-
 // ============== Health Check ==============
 app.get('/api/health', async (req, res) => {
     try {
         await pool.query('SELECT 1');
         res.json({
             status: 'healthy',
-            version: VERSION.full,
-            display: VERSION.display,
-            name: VERSION.name,
+            version: '69.0.0',
             timestamp: new Date().toISOString(),
             database: 'connected',
             uptime: process.uptime()
@@ -5012,7 +4975,6 @@ app.get('/api/health', async (req, res) => {
     } catch (err) {
         res.status(500).json({
             status: 'unhealthy',
-            version: VERSION.full,
             database: 'disconnected'
         });
     }
@@ -8293,27 +8255,16 @@ app.get('/api/admin/security/export', authenticateToken, async (req, res) => {
     }
 });
 
-
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, async () => {
-    // Save version to database
-    try {
-        await pool.query(`
-            INSERT INTO settings (key, value) VALUES ('app_version', $1)
-            ON CONFLICT (key) DO UPDATE SET value = $1
-        `, [VERSION.full]);
-    } catch (err) {
-        console.log('Could not save version to DB');
-    }
-    
+app.listen(PORT, () => {
     console.log(`
-╔════════════════════════════════════════════════════════════╗
-║   🎮 ${VERSION.name} Server ${VERSION.display}              ║
-║   ✅ Running on port ${PORT}                                 ║
-║   🌐 http://localhost:${PORT}                                 ║
-║   🔐 Admin: /${ADMIN_PANEL_PATH}.html                       ║
-║   📊 Health: /api/health                                   ║
-║   🏷️  ${VERSION.codename}                                   ║
-╚════════════════════════════════════════════════════════════╝
+╔════════════════════════════════════════════════════╗
+║   🎮 Red Strong Tetris Server v70.0                ║
+║   ✅ Running on port ${PORT}                          ║
+║   🌐 http://localhost:${PORT}                          ║
+║   🔐 Admin: /${ADMIN_PANEL_PATH}.html              ║
+║   📊 Health: /api/health                           ║
+╚════════════════════════════════════════════════════╝
     `);
 });
+

@@ -1,0 +1,379 @@
+{
+  "timestamp": "2026-01-27T06:30:21.057Z",
+  "target": "http://localhost:3000",
+  "duration": "0.20",
+  "summary": {
+    "passed": 57,
+    "failed": 0,
+    "warnings": 4,
+    "score": 93
+  },
+  "tests": [
+    {
+      "category": "Path Traversal",
+      "name": "../../../etc/passwd",
+      "status": "pass",
+      "details": ""
+    },
+    {
+      "category": "Path Traversal",
+      "name": "..\\..\\..\\windows\\system32\\conf",
+      "status": "pass",
+      "details": ""
+    },
+    {
+      "category": "Path Traversal",
+      "name": "....//....//....//etc/passwd",
+      "status": "pass",
+      "details": ""
+    },
+    {
+      "category": "Path Traversal",
+      "name": "%2e%2e%2f%2e%2e%2f%2e%2e%2fetc",
+      "status": "pass",
+      "details": ""
+    },
+    {
+      "category": "Path Traversal",
+      "name": "%252e%252e%252f%252e%252e%252f",
+      "status": "pass",
+      "details": ""
+    },
+    {
+      "category": "Path Traversal",
+      "name": "..%00/etc/passwd",
+      "status": "pass",
+      "details": ""
+    },
+    {
+      "category": "Path Traversal",
+      "name": "..%c0%af..%c0%af..%c0%afetc/pa",
+      "status": "pass",
+      "details": ""
+    },
+    {
+      "category": "Path Traversal",
+      "name": "/uploads/../../../etc/passwd",
+      "status": "pass",
+      "details": ""
+    },
+    {
+      "category": "Path Traversal",
+      "name": "/uploads/..%2f..%2f..%2fetc/pa",
+      "status": "pass",
+      "details": ""
+    },
+    {
+      "category": "Path Traversal",
+      "name": "..%c0%ae..%c0%ae/etc/passwd",
+      "status": "pass",
+      "details": ""
+    },
+    {
+      "category": "Path Traversal",
+      "name": "%e0%80%ae%e0%80%ae/etc/passwd",
+      "status": "pass",
+      "details": ""
+    },
+    {
+      "category": "SQL Injection",
+      "name": "' OR '1'='1",
+      "status": "pass",
+      "details": ""
+    },
+    {
+      "category": "SQL Injection",
+      "name": "'; DROP TABLE players;--",
+      "status": "pass",
+      "details": ""
+    },
+    {
+      "category": "SQL Injection",
+      "name": "1' UNION SELECT * FROM ad",
+      "status": "pass",
+      "details": ""
+    },
+    {
+      "category": "SQL Injection",
+      "name": "admin'--",
+      "status": "pass",
+      "details": ""
+    },
+    {
+      "category": "SQL Injection",
+      "name": "1; SELECT * FROM players",
+      "status": "pass",
+      "details": ""
+    },
+    {
+      "category": "SQL Injection",
+      "name": "' OR 1=1--",
+      "status": "pass",
+      "details": ""
+    },
+    {
+      "category": "SQL Injection",
+      "name": "1' AND '1'='1",
+      "status": "pass",
+      "details": ""
+    },
+    {
+      "category": "SQL Injection",
+      "name": "'; WAITFOR DELAY '0:0:5'-",
+      "status": "pass",
+      "details": ""
+    },
+    {
+      "category": "XSS",
+      "name": "<script>alert(\"XSS\")</scr",
+      "status": "pass",
+      "details": ""
+    },
+    {
+      "category": "XSS",
+      "name": "<img src=x onerror=alert(",
+      "status": "pass",
+      "details": ""
+    },
+    {
+      "category": "XSS",
+      "name": "<svg onload=alert(\"XSS\")>",
+      "status": "pass",
+      "details": ""
+    },
+    {
+      "category": "XSS",
+      "name": "javascript:alert(\"XSS\")",
+      "status": "pass",
+      "details": ""
+    },
+    {
+      "category": "XSS",
+      "name": "<body onload=alert(\"XSS\")",
+      "status": "pass",
+      "details": ""
+    },
+    {
+      "category": "XSS",
+      "name": "\"><script>alert(\"XSS\")</s",
+      "status": "pass",
+      "details": ""
+    },
+    {
+      "category": "XSS",
+      "name": "'-alert('XSS')-'",
+      "status": "pass",
+      "details": ""
+    },
+    {
+      "category": "XSS",
+      "name": "<iframe src=\"javascript:a",
+      "status": "pass",
+      "details": ""
+    },
+    {
+      "category": "XSS",
+      "name": "<input onfocus=alert(\"XSS",
+      "status": "pass",
+      "details": ""
+    },
+    {
+      "category": "Headers",
+      "name": "X-Content-Type-Options",
+      "status": "pass",
+      "details": ""
+    },
+    {
+      "category": "Headers",
+      "name": "X-Frame-Options",
+      "status": "pass",
+      "details": ""
+    },
+    {
+      "category": "Headers",
+      "name": "X-XSS-Protection",
+      "status": "pass",
+      "details": ""
+    },
+    {
+      "category": "Headers",
+      "name": "HSTS",
+      "status": "warn",
+      "details": ""
+    },
+    {
+      "category": "Headers",
+      "name": "CSP",
+      "status": "warn",
+      "details": ""
+    },
+    {
+      "category": "Headers",
+      "name": "Server Header",
+      "status": "pass",
+      "details": ""
+    },
+    {
+      "category": "Headers",
+      "name": "X-Powered-By",
+      "status": "pass",
+      "details": ""
+    },
+    {
+      "category": "Rate Limiting",
+      "name": "Score Endpoint",
+      "status": "pass",
+      "details": "5 blocked"
+    },
+    {
+      "category": "Rate Limiting",
+      "name": "Login Endpoint",
+      "status": "pass",
+      "details": "5 blocked"
+    },
+    {
+      "category": "Auth Bypass",
+      "name": "/api/admin/stats",
+      "status": "pass",
+      "details": ""
+    },
+    {
+      "category": "Auth Bypass",
+      "name": "/api/admin/players",
+      "status": "pass",
+      "details": ""
+    },
+    {
+      "category": "Auth Bypass",
+      "name": "/api/admin/settings",
+      "status": "warn",
+      "details": "Status: 404"
+    },
+    {
+      "category": "Auth Bypass",
+      "name": "/api/admin/announcements",
+      "status": "pass",
+      "details": ""
+    },
+    {
+      "category": "Auth Bypass",
+      "name": "/api/admin/security/dashboard",
+      "status": "pass",
+      "details": ""
+    },
+    {
+      "category": "Auth Bypass",
+      "name": "Invalid Token",
+      "status": "pass",
+      "details": ""
+    },
+    {
+      "category": "Score Manipulation",
+      "name": "Extremely high score",
+      "status": "pass",
+      "details": ""
+    },
+    {
+      "category": "Score Manipulation",
+      "name": "Negative score",
+      "status": "pass",
+      "details": ""
+    },
+    {
+      "category": "Score Manipulation",
+      "name": "Non-numeric score",
+      "status": "pass",
+      "details": ""
+    },
+    {
+      "category": "Score Manipulation",
+      "name": "Null score",
+      "status": "pass",
+      "details": ""
+    },
+    {
+      "category": "Score Manipulation",
+      "name": "NoSQL injection in score",
+      "status": "pass",
+      "details": ""
+    },
+    {
+      "category": "File Upload",
+      "name": "Auth Required",
+      "status": "pass",
+      "details": ""
+    },
+    {
+      "category": "Data Exposure",
+      "name": "/.env",
+      "status": "pass",
+      "details": ""
+    },
+    {
+      "category": "Data Exposure",
+      "name": "/server.js",
+      "status": "pass",
+      "details": ""
+    },
+    {
+      "category": "Data Exposure",
+      "name": "/package.json",
+      "status": "pass",
+      "details": ""
+    },
+    {
+      "category": "Data Exposure",
+      "name": "/.git/config",
+      "status": "pass",
+      "details": ""
+    },
+    {
+      "category": "Data Exposure",
+      "name": "/node_modules/",
+      "status": "pass",
+      "details": ""
+    },
+    {
+      "category": "Data Exposure",
+      "name": "/config/database.js",
+      "status": "pass",
+      "details": ""
+    },
+    {
+      "category": "Data Exposure",
+      "name": "/.htaccess",
+      "status": "pass",
+      "details": ""
+    },
+    {
+      "category": "Data Exposure",
+      "name": "/web.config",
+      "status": "pass",
+      "details": ""
+    },
+    {
+      "category": "CORS",
+      "name": "Origin Check",
+      "status": "warn",
+      "details": "Allows all origins"
+    },
+    {
+      "category": "Local Security",
+      "name": ".env Permissions",
+      "status": "pass",
+      "details": ""
+    },
+    {
+      "category": "Local Security",
+      "name": "Debug Mode",
+      "status": "pass",
+      "details": ""
+    },
+    {
+      "category": "Local Security",
+      "name": "Hardcoded Secrets",
+      "status": "pass",
+      "details": ""
+    }
+  ]
+}

@@ -417,7 +417,7 @@
                 <img src="/uploads/redstrong.png" alt="Logo">
                 <div>
                     <h2>Red Strong</h2>
-                    <small id="app-version" style="color: var(--text-muted); font-size: 0.7rem;">loading...</small>
+                    <small style="color: var(--text-muted); font-size: 0.7rem;">v69.0.0</small>
                 </div>
             </div>
             <nav class="sidebar-menu">
@@ -2555,29 +2555,11 @@
             // Login form
             document.getElementById('login-form').addEventListener('submit', handleLogin);
             
-            // Load app version
-            loadAppVersion();
-            
             // Check if already logged in
             if (token) {
                 showAdmin();
             }
         });
-        
-        // Load app version from API
-        async function loadAppVersion() {
-            try {
-                const res = await fetch('/api/version');
-                const data = await res.json();
-                if (data.success) {
-                    document.getElementById('app-version').textContent = data.display;
-                    // Also update page title
-                    document.title = `${data.name} Admin - ${data.display}`;
-                }
-            } catch (err) {
-                document.getElementById('app-version').textContent = 'v--';
-            }
-        }
 
         // ============== Authentication ==============
         async function handleLogin(e) {
