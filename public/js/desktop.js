@@ -7,6 +7,7 @@ const DesktopApp = {
     // Initialize
     async init() {
         await this.loadSettings();
+        await this.loadVersion(); // تحميل رقم الإصدار
         this.generateQRCode();
     },
     
@@ -17,6 +18,22 @@ const DesktopApp = {
             this.applySettings();
         } catch (e) {
             console.log('Using default settings');
+        }
+    },
+    
+    // تحميل رقم الإصدار
+    async loadVersion() {
+        try {
+            const res = await fetch('/api/version');
+            const data = await res.json();
+            if (data.success && data.data.version) {
+                const versionEl = document.getElementById('desktop-version');
+                if (versionEl) {
+                    versionEl.textContent = 'v' + data.data.version;
+                }
+            }
+        } catch (err) {
+            console.log('Could not load version');
         }
     },
     

@@ -2,6 +2,7 @@
 // التحسينات: Refresh Tokens, Activity Logs, WhatsApp, Enhanced Security
 require('dotenv').config();
 const express = require('express');
+const versionManager = require('./config/version');
 const { Pool } = require('pg');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
@@ -4967,7 +4968,7 @@ app.get('/api/health', async (req, res) => {
         await pool.query('SELECT 1');
         res.json({
             status: 'healthy',
-            version: '69.0.0',
+            version: versionManager.getVersion(),
             timestamp: new Date().toISOString(),
             database: 'connected',
             uptime: process.uptime()
@@ -4979,6 +4980,10 @@ app.get('/api/health', async (req, res) => {
         });
     }
 });
+
+// ============== Version API ==============
+const versionRouter = require('./routes/version');
+app.use('/api', versionRouter);
 
 
 
@@ -8257,14 +8262,13 @@ app.get('/api/admin/security/export', authenticateToken, async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-    console.log(`
-╔════════════════════════════════════════════════════╗
-║   🎮 Red Strong Tetris Server v70.0                ║
-║   ✅ Running on port ${PORT}                          ║
-║   🌐 http://localhost:${PORT}                          ║
-║   🔐 Admin: /${ADMIN_PANEL_PATH}.html              ║
-║   📊 Health: /api/health                           ║
-╚════════════════════════════════════════════════════╝
-    `);
+    versionManager.logVersionInfo();
+    console.log(`╔════════════════════════════════════════════════════╗`);
+    console.log(`║   ✅ Running on port ${PORT}                          ║`);
+    console.log(`║   🌐 http://localhost:${PORT}                          ║`);
+    console.log(`║   🔐 Admin: /${ADMIN_PANEL_PATH}.html              ║`);
+    console.log(`║   📊 Health: /api/health                           ║`);
+    console.log(`║   📦 Version: /api/version                         ║`);
+    console.log(`╚════════════════════════════════════════════════════╝`);
 });
 

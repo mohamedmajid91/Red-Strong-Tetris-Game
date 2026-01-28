@@ -1204,7 +1204,6 @@
         <!-- Footer -->
         <div class="home-footer">
             <p>© 2025 <span id="footer-company">Red Strong</span>. جميع الحقوق محفوظة</p>
-            <p style="margin-top: 5px; font-size: 0.75rem; opacity: 0.7;">الإصدار: <span id="app-version">...</span></p>
         </div>
     </div>
 
@@ -1529,7 +1528,6 @@
                 this.loadTheme();
                 this.loadModePreference();
                 this.loadSiteSettings();
-                this.loadVersion(); // تحميل رقم الإصدار
                 this.loadPlayer(); this.loadAchievements(); this.loadStats(); this.setupProvinces(); this.setupForm(); this.setupTouch(); this.setupKeyboard(); this.loadLeaderboard(); this.startLeaderboardUpdates();
                 // Load prizes and announcements
                 this.loadCurrentPrize();
@@ -1744,22 +1742,6 @@
                     
                 } catch (err) {
                     console.log('Could not load site settings, using defaults');
-                }
-            },
-            
-            // تحميل رقم الإصدار
-            async loadVersion() {
-                try {
-                    const res = await fetch('/api/version');
-                    const data = await res.json();
-                    if (data.success && data.data.version) {
-                        const versionEl = document.getElementById('app-version');
-                        if (versionEl) {
-                            versionEl.textContent = 'v' + data.data.version;
-                        }
-                    }
-                } catch (err) {
-                    console.log('Could not load version');
                 }
             },
             
@@ -3396,6 +3378,271 @@
     
     // تشغيل بعد تحميل اللاعب
     setTimeout(() => ChatSystem.init(), 2000);
+        
+        async loadTopPlayers() {
+            try {
+                const r = await fetch('/api/leaderboard?period=all&limit=10');
+                const d = await r.json();
+                this.topPlayers = (d.leaderboard || d || []).map(p => p.phone);
+            } catch(e) {}
+        },
+        
+        getNameColor(phone) {
+            let hash = 0;
+            for (let i = 0; i < phone.length; i++) hash = phone.charCodeAt(i) + ((hash << 5) - hash);
+            return this.nameColors[Math.abs(hash) % this.nameColors.length];
+        },
+        
+        getRankBadge(phone) {
+            const idx = this.topPlayers.indexOf(phone);
+            if (idx === 0) return '👑';
+            if (idx > 0 && idx < 3) return '⭐';
+            if (idx >= 3 && idx < 10) return '🎮';
+            return '';
+        },
+        
+        toggle() {
+            this.isOpen = !this.isOpen;
+            document.getElementById('chat-window').classList.toggle('open', this.isOpen);
+            document.getElementById('chat-fab').classList.remove('has-new');
+            if (this.isOpen) {
+                this.unread = 0;
+                this.updateBadge();
+                this.scrollBottom();
+                if (!this.isEnabled) this.loadAll();
+                setTimeout(() => document.getElementById('chat-input')?.focus(), 100);
+            }
+        },
+        
+        toggleEmoji() {
+            document.getElementById('emoji-picker').classList.toggle('show');
+        },
+        
+        addEmoji(emoji) {
+            const input = document.getElementById('chat-input');
+            input.value += emoji;
+            input.focus();
+        },
+        
+        setReply(msgId, name, text) {
+            this.replyTo = { id: msgId, name, text: text.substring(0, 30) };
+            document.getElementById('reply-text').textContent = `↩️ ${name}: ${this.replyTo.text}...`;
+            document.getElementById('chat-reply-bar').classList.add('show');
+            document.getElementById('chat-input').focus();
+        },
+        
+        cancelReply() {
+            this.replyTo = null;
+            document.getElementById('chat-reply-bar').classList.remove('show');
+        },
+        
+        playSound() {
+            if (!this.soundEnabled) return;
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.frequency.value = 800;
+                osc.type = 'sine';
+                gain.gain.setValueAtTime(0.1, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
+                osc.start(ctx.currentTime);
+                osc.stop(ctx.currentTime + 0.2);
+            } catch(e) {}
+        },
+        
+        async checkAndLoad() {
+            try {
+                const r = await fetch('/api/chat/messages?after=' + this.lastId + '&limit=20');
+                const d = await r.json();
+                
+                if (!d.enabled) {
+                    if (this.isEnabled) this.showDisabled();
+                    return;
+                }
+                
+                if (!this.isEnabled) {
+                    this.isEnabled = true;
+                    this.showEnabled();
+                    this.loadAll();
+                    return;
+                }
+                
+                if (d.messages && d.messages.length > 0) {
+                    const newMsgs = d.messages.filter(m => m.id > this.lastId);
+                    if (newMsgs.length > 0) {
+                        this.messages = [...this.messages, ...newMsgs].slice(-100);
+                        this.lastId = Math.max(...this.messages.map(m => m.id));
+                        if (!this.isOpen) {
+                            this.unread += newMsgs.length;
+                            this.updateBadge();
+                            document.getElementById('chat-fab').classList.add('has-new');
+                            this.playSound();
+                        }
+                        this.render();
+                    }
+                }
+            } catch (e) {}
+        },
+        
+        async loadAll() {
+            try {
+                const r = await fetch('/api/chat/messages?limit=50');
+                const d = await r.json();
+                if (!d.enabled) { this.showDisabled(); return; }
+                this.isEnabled = true;
+                this.showEnabled();
+                this.messages = d.messages || [];
+                if (this.messages.length > 0) {
+                    this.lastId = Math.max(...this.messages.map(m => m.id));
+                }
+                this.render();
+            } catch (e) { console.log('Chat load error:', e); }
+        },
+        
+        render() {
+            const c = document.getElementById('chat-messages');
+            const phone = Game.player?.phone;
+            const name = Game.player?.name;
+            
+            if (this.messages.length === 0) {
+                c.innerHTML = '<div class="chat-system">👋 مرحباً! ابدأ المحادثة</div>';
+                return;
+            }
+            
+            c.innerHTML = this.messages.map(m => {
+                const isMe = m.player_phone === phone || m.player_name === name;
+                const t = new Date(m.created_at).toLocaleTimeString('ar-IQ', {hour:'2-digit', minute:'2-digit'});
+                const color = this.getNameColor(m.player_phone);
+                const badge = this.getRankBadge(m.player_phone);
+                const replyHtml = m.reply_to ? `<div class="reply-preview">↩️ ${this.esc(m.reply_to_name)}: ${this.esc(m.reply_to_text)}</div>` : '';
+                
+                return `<div class="chat-message ${isMe ? 'me' : 'other'}" data-id="${m.id}">
+                    ${!isMe ? `<span class="sender" style="color:${color}"><span class="rank-badge">${badge}</span> ${this.esc(m.player_name)}</span>` : ''}
+                    ${replyHtml}
+                    <div class="msg-bubble" ondblclick="ChatSystem.setReply(${m.id}, '${this.esc(m.player_name)}', '${this.esc(m.message)}')">${this.esc(m.message)}</div>
+                    <div class="msg-footer">
+                        <span class="time">${t}</span>
+                        <button class="report-btn" onclick="ChatSystem.report(${m.id})" title="إبلاغ">⚠️</button>
+                    </div>
+                </div>`;
+            }).join('');
+            
+            this.scrollBottom();
+        },
+        
+        async send() {
+            const input = document.getElementById('chat-input');
+            const msg = input.value.trim();
+            if (!msg) return;
+            
+            const phone = Game.player?.phone;
+            const name = Game.player?.name;
+            if (!phone || !name) {
+                this.showError('سجل دخولك أولاً');
+                return;
+            }
+            
+            const btn = document.getElementById('chat-send');
+            btn.disabled = true;
+            
+            try {
+                const body = { phone, name, message: msg };
+                if (this.replyTo) {
+                    body.reply_to_id = this.replyTo.id;
+                    body.reply_to_name = this.replyTo.name;
+                    body.reply_to_text = this.replyTo.text;
+                }
+                
+                const r = await fetch('/api/chat/send', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(body)
+                });
+                const d = await r.json();
+                
+                if (d.success) {
+                    input.value = '';
+                    this.cancelReply();
+                    document.getElementById('emoji-picker').classList.remove('show');
+                    if (d.message) {
+                        this.messages.push(d.message);
+                        this.lastId = d.message.id;
+                        this.render();
+                    } else {
+                        this.checkAndLoad();
+                    }
+                } else {
+                    this.showError(d.error || 'خطأ');
+                }
+            } catch (e) {
+                this.showError('خطأ بالاتصال');
+            }
+            
+            btn.disabled = false;
+            input.focus();
+        },
+        
+        async report(msgId) {
+            if (!confirm('هل تريد الإبلاغ عن هذه الرسالة؟')) return;
+            try {
+                await fetch('/api/chat/report', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ message_id: msgId, reporter_phone: Game.player?.phone })
+                });
+                this.showError('✅ تم الإبلاغ');
+            } catch(e) {
+                this.showError('خطأ');
+            }
+        },
+        
+        showError(msg) {
+            const c = document.getElementById('chat-messages');
+            const err = document.createElement('div');
+            err.className = 'chat-error';
+            err.textContent = msg;
+            c.appendChild(err);
+            this.scrollBottom();
+            setTimeout(() => err.remove(), 3000);
+        },
+        
+        showDisabled() {
+            this.isEnabled = false;
+            document.getElementById('chat-messages').innerHTML = '<div class="chat-disabled"><span class="icon">🔒</span><p>الدردشة معطلة حالياً</p></div>';
+            document.getElementById('chat-input-area').style.display = 'none';
+            document.getElementById('chat-fab').style.opacity = '0.6';
+        },
+        
+        showEnabled() {
+            document.getElementById('chat-input-area').style.display = 'flex';
+            document.getElementById('chat-fab').style.opacity = '1';
+        },
+        
+        updateBadge() {
+            const b = document.getElementById('chat-badge');
+            if (this.unread > 0) {
+                b.textContent = this.unread > 99 ? '99+' : this.unread;
+                b.style.display = 'flex';
+            } else {
+                b.style.display = 'none';
+            }
+        },
+        
+        scrollBottom() {
+            const c = document.getElementById('chat-messages');
+            setTimeout(() => c.scrollTop = c.scrollHeight, 50);
+        },
+        
+        esc(t) {
+            if (!t) return '';
+            const d = document.createElement('div');
+            d.textContent = t;
+            return d.innerHTML;
+        }
+    };
     
     </script>
 </body>
