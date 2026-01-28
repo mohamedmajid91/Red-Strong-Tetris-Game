@@ -62,7 +62,16 @@
         body.light-mode .stat-box { background: rgba(255,255,255,0.9); }
         body.light-mode .stat-label { color: #666; }
         body.light-mode .stat-value { color: var(--bg-dark); }
-        body.light-mode .energy-bar { background: rgba(255,255,255,0.9); }
+        body.light-mode .energy-bar { 
+            background: linear-gradient(180deg, 
+                rgba(227, 30, 36, 0.1) 0%,
+                rgba(255,255,255,0.95) 100%
+            );
+            border-color: var(--accent-red);
+            box-shadow: 
+                0 4px 15px rgba(227, 30, 36, 0.2),
+                inset 0 2px 5px rgba(0,0,0,0.1);
+        }
         body.light-mode .game-board-wrapper { background: rgba(255,255,255,0.95); }
         body.light-mode .control-btn { background: rgba(255,255,255,0.9); }
         body.light-mode .timer-display { color: var(--bg-dark); }
@@ -785,12 +794,187 @@
         .stat-box.highlight .stat-value { color: white; }
         .main-area { flex: 1; display: flex; gap: 8px; min-height: 0; }
         
-        /* Energy Bar */
-        .energy-bar-container { width: 40px; display: flex; flex-direction: column; align-items: center; gap: 5px; }
-        .energy-label { writing-mode: vertical-rl; text-orientation: mixed; transform: rotate(180deg); font-size: 0.55rem; font-weight: 700; color: var(--bg-dark); text-transform: uppercase; letter-spacing: 2px; }
-        .energy-bar { flex: 1; width: 28px; background: var(--glass); border-radius: 14px; border: 3px solid var(--bg-dark); overflow: hidden; display: flex; flex-direction: column-reverse; }
-        .energy-fill { width: 100%; background: linear-gradient(180deg, var(--accent-yellow) 0%, var(--accent-red) 100%); transition: height 0.5s ease; border-radius: 0 0 10px 10px; }
-        .energy-icon { font-size: 1.1rem; margin-top: 5px; }
+        /* Energy Bar - Red Strong Can Design */
+        .energy-bar-container { 
+            width: 50px; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            gap: 8px;
+            position: relative;
+        }
+        
+        .energy-label { 
+            font-size: 0.5rem; 
+            font-weight: 700; 
+            color: var(--accent-red); 
+            text-transform: uppercase; 
+            letter-spacing: 1px;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+        }
+        
+        /* القوطية الرئيسية */
+        .energy-bar { 
+            flex: 1; 
+            width: 45px;
+            background: linear-gradient(180deg, 
+                rgba(227, 30, 36, 0.15) 0%,
+                rgba(227, 30, 36, 0.1) 100%
+            );
+            border-radius: 8px 8px 12px 12px;
+            border: 2.5px solid var(--accent-red);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column-reverse;
+            position: relative;
+            box-shadow: 
+                0 4px 15px rgba(227, 30, 36, 0.3),
+                inset 0 2px 5px rgba(255,255,255,0.2),
+                inset 0 -2px 5px rgba(0,0,0,0.2);
+        }
+        
+        /* رأس القوطية */
+        .energy-bar::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 25px;
+            background: linear-gradient(180deg, 
+                var(--accent-red) 0%,
+                #b91419 100%
+            );
+            border-bottom: 2px solid rgba(0,0,0,0.2);
+            z-index: 2;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        /* لوقو RED STRONG */
+        .energy-bar::after {
+            content: 'RS';
+            position: absolute;
+            top: 4px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 0.65rem;
+            font-weight: 900;
+            color: white;
+            text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+            letter-spacing: 1px;
+            z-index: 3;
+            font-family: 'Orbitron', sans-serif;
+        }
+        
+        /* السائل (الطاقة) */
+        .energy-fill { 
+            width: 100%; 
+            background: linear-gradient(180deg, 
+                #ffd700 0%,
+                #ffed4e 20%,
+                var(--accent-red) 60%,
+                #b91419 100%
+            );
+            transition: height 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            margin-top: 25px;
+            box-shadow: 
+                inset 0 2px 10px rgba(255,215,0,0.6),
+                inset 0 -2px 10px rgba(227,30,36,0.6);
+        }
+        
+        /* موج على سطح السائل */
+        .energy-fill::before {
+            content: '';
+            position: absolute;
+            top: -3px;
+            left: 0;
+            right: 0;
+            height: 6px;
+            background: radial-gradient(ellipse at center, 
+                rgba(255,215,0,0.8) 0%, 
+                transparent 70%
+            );
+            animation: wave 2s ease-in-out infinite;
+            opacity: 0.8;
+        }
+        
+        /* لمعان على السائل */
+        .energy-fill::after {
+            content: '';
+            position: absolute;
+            top: 10%;
+            left: 5px;
+            width: 12px;
+            height: 40%;
+            background: linear-gradient(180deg, 
+                rgba(255,255,255,0.6) 0%,
+                rgba(255,255,255,0.2) 50%,
+                transparent 100%
+            );
+            border-radius: 10px;
+            opacity: 0.7;
+        }
+        
+        /* فقاعات */
+        @keyframes bubble-rise {
+            0% { 
+                transform: translateY(0) scale(0);
+                opacity: 0;
+            }
+            10% {
+                opacity: 1;
+            }
+            90% {
+                opacity: 0.8;
+            }
+            100% { 
+                transform: translateY(-100px) scale(1);
+                opacity: 0;
+            }
+        }
+        
+        @keyframes wave {
+            0%, 100% { 
+                transform: translateY(0) scaleX(1);
+            }
+            50% { 
+                transform: translateY(-2px) scaleX(1.1);
+            }
+        }
+        
+        /* توهج عند الامتلاء */
+        .energy-fill.full {
+            animation: glow-pulse 1.5s ease-in-out infinite;
+        }
+        
+        @keyframes glow-pulse {
+            0%, 100% {
+                box-shadow: 
+                    inset 0 2px 10px rgba(255,215,0,0.6),
+                    inset 0 -2px 10px rgba(227,30,36,0.6),
+                    0 0 15px rgba(255,215,0,0.6);
+            }
+            50% {
+                box-shadow: 
+                    inset 0 2px 15px rgba(255,215,0,0.9),
+                    inset 0 -2px 15px rgba(227,30,36,0.9),
+                    0 0 25px rgba(255,215,0,0.9);
+            }
+        }
+        
+        .energy-icon { 
+            font-size: 1.3rem; 
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+            animation: icon-float 2s ease-in-out infinite;
+        }
+        
+        @keyframes icon-float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-3px); }
+        }
         
         /* Game Board */
         .game-board-wrapper { flex: 1; display: flex; flex-direction: column; background: var(--glass); border-radius: 15px; border: 4px solid var(--bg-dark); overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.15); }
@@ -1222,9 +1406,11 @@
             </div>
             <div class="main-area">
                 <div class="energy-bar-container">
-                    <span class="energy-label">ENERGY</span>
-                    <div class="energy-bar"><div class="energy-fill" id="energy-fill" style="height:0%;"></div></div>
-                    <span class="energy-icon">🔋</span>
+                    <span class="energy-label">POWER</span>
+                    <div class="energy-bar">
+                        <div class="energy-fill" id="energy-fill" style="height:0%;"></div>
+                    </div>
+                    <span class="energy-icon">⚡</span>
                 </div>
                 <div class="game-board-wrapper">
                     <div class="board-header"><img src="/uploads/redstrong.png" alt="Red Strong"></div>
@@ -2793,7 +2979,59 @@
                 }
             },
             
-            updateUI() { document.getElementById('score-display').textContent = this.score; document.getElementById('level-display').textContent = this.level; document.getElementById('lines-display').textContent = this.lines; document.getElementById('energy-fill').style.height = this.energy + '%'; const powerIcon = document.getElementById('power-icon'); if (this.powerUpReady) powerIcon.classList.add('active'); else powerIcon.classList.remove('active'); },
+            updateUI() { 
+                document.getElementById('score-display').textContent = this.score; 
+                document.getElementById('level-display').textContent = this.level; 
+                document.getElementById('lines-display').textContent = this.lines; 
+                
+                // تحديث القوطية مع التأثيرات
+                const energyFill = document.getElementById('energy-fill');
+                energyFill.style.height = this.energy + '%'; 
+                
+                // إضافة class للتوهج عند الامتلاء
+                if (this.energy >= 100) {
+                    energyFill.classList.add('full');
+                    this.createEnergyBubbles(); // فقاعات عند الامتلاء
+                } else {
+                    energyFill.classList.remove('full');
+                }
+                
+                // فقاعات عشوائية أثناء الامتلاء
+                if (this.energy > 30 && Math.random() < 0.1) {
+                    this.createEnergyBubbles(1);
+                }
+                
+                const powerIcon = document.getElementById('power-icon'); 
+                if (this.powerUpReady) powerIcon.classList.add('active'); 
+                else powerIcon.classList.remove('active'); 
+            },
+            
+            // إنشاء فقاعات الطاقة
+            createEnergyBubbles(count = 3) {
+                const energyBar = document.querySelector('.energy-bar');
+                if (!energyBar) return;
+                
+                for (let i = 0; i < count; i++) {
+                    setTimeout(() => {
+                        const bubble = document.createElement('div');
+                        bubble.style.cssText = `
+                            position: absolute;
+                            bottom: ${this.energy}%;
+                            left: ${20 + Math.random() * 40}%;
+                            width: ${3 + Math.random() * 4}px;
+                            height: ${3 + Math.random() * 4}px;
+                            background: radial-gradient(circle, rgba(255,255,255,0.9), rgba(255,215,0,0.5));
+                            border-radius: 50%;
+                            pointer-events: none;
+                            animation: bubble-rise ${1.5 + Math.random()}s ease-out forwards;
+                            z-index: 5;
+                        `;
+                        energyBar.appendChild(bubble);
+                        
+                        setTimeout(() => bubble.remove(), 2000);
+                    }, i * 100);
+                }
+            },
             
             draw() {
                 const { ctx, canvas, BLOCK_SIZE } = this;
