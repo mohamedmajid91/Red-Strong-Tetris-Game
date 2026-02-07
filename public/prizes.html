@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>الجوائز والعروض - Red Strong Tetris</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Cairo', sans-serif;
+            background: linear-gradient(135deg, #1a237e 0%, #283593 50%, #3949ab 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #fff;
+        }
+        
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        
+        /* Header */
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .header h1 {
+            font-size: 2rem;
+            margin-bottom: 10px;
+            color: #ffd700;
+        }
+        
+        .header p {
+            opacity: 0.9;
+            font-size: 0.9rem;
+        }
+        
+        /* Prize Card */
+        .prize-card {
+            background: rgba(255,255,255,0.95);
+            border-radius: 20px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .prize-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 5px;
+            background: var(--tier-color, #ffd700);
+        }
+        
+        .prize-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .prize-icon {
+            font-size: 3rem;
+        }
+        
+        .prize-info h2 {
+            font-size: 1.3rem;
+            color: #333;
+            margin-bottom: 5px;
+        }
+        
+        .prize-range {
+            font-size: 0.85rem;
+            color: #666;
+            font-weight: 600;
+        }
+        
+        .prize-name {
+            font-size: 1.1rem;
+            color: #1a237e;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+        
+        .prize-description {
+            font-size: 0.9rem;
+            color: #666;
+            margin-bottom: 15px;
+        }
+        
+        /* Status */
+        .prize-status {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 15px;
+            background: #f5f5f5;
+            border-radius: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .status-info {
+            flex: 1;
+        }
+        
+        .status-label {
+            font-size: 0.75rem;
+            color: #999;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+        
+        .status-value {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: #333;
+        }
+        
+        .status-value.success {
+            color: #4caf50;
+        }
+        
+        .status-value.warning {
+            color: #ff9800;
+        }
+        
+        /* Buttons */
+        .btn {
+            width: 100%;
+            padding: 15px;
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-family: 'Cairo', sans-serif;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #4caf50 0%, #66bb6a 100%);
+            color: white;
+        }
+        
+        .btn-primary:active {
+            transform: translateY(2px);
+        }
+        
+        .btn-secondary {
+            background: #e0e0e0;
+            color: #666;
+        }
+        
+        .btn-locked {
+            background: #bdbdbd;
+            color: #757575;
+            cursor: not-allowed;
+        }
+        
+        .btn-entered {
+            background: linear-gradient(135deg, #2196f3 0%, #42a5f5 100%);
+            color: white;
+        }
+        
+        /* Winners Section */
+        .winners-section {
+            background: rgba(255,255,255,0.95);
+            border-radius: 20px;
+            padding: 20px;
+            margin-top: 30px;
+        }
+        
+        .winners-section h2 {
+            color: #333;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .winner-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 15px;
+            background: #f5f5f5;
+            border-radius: 10px;
+            margin-bottom: 10px;
+        }
+        
+        .winner-name {
+            font-weight: 700;
+            color: #333;
+        }
+        
+        .winner-prize {
+            color: #666;
+            font-size: 0.9rem;
+        }
+        
+        .winner-date {
+            color: #999;
+            font-size: 0.75rem;
+        }
+        
+        /* Loading */
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: white;
+        }
+        
+        .loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid rgba(255,255,255,0.3);
+            border-top-color: #ffd700;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+        
+        .empty-state-icon {
+            font-size: 4rem;
+            margin-bottom: 20px;
+            opacity: 0.5;
+        }
+        
+        /* Toast */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #323232;
+            color: white;
+            padding: 15px 30px;
+            border-radius: 50px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+            z-index: 1000;
+            display: none;
+        }
+        
+        .toast.show {
+            display: block;
+            animation: slideUp 0.3s ease;
+        }
+        
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateX(-50%) translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(-50%) translateY(0);
+            }
+        }
+        
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .modal.show {
+            display: flex;
+        }
+        
+        .modal-content {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            max-width: 400px;
+            width: 100%;
+            position: relative;
+        }
+        
+        .modal-close {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #999;
+        }
+        
+        .modal-header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        
+        .modal-header h2 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        
+        .modal-icon {
+            font-size: 4rem;
+            margin-bottom: 15px;
+        }
+        
+        .modal-body {
+            color: #666;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        
+        .lucky-numbers {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 15px 0;
+        }
+        
+        .lucky-numbers-title {
+            font-size: 0.8rem;
+            color: #999;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+        }
+        
+        .lucky-number {
+            display: inline-block;
+            background: #ffd700;
+            color: #333;
+            padding: 8px 15px;
+            border-radius: 50px;
+            margin: 5px;
+            font-weight: 700;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>🎁 الجوائز والعروض</h1>
+            <p>اربح جوائز قيمة عند تحقيق النقاط المطلوبة!</p>
+        </div>
+        
+        <!-- Loading State -->
+        <div id="loading" class="loading">
+            <div class="loading-spinner"></div>
+            <p>جاري التحميل...</p>
+        </div>
+        
+        <!-- Prize Cards -->
+        <div id="prizes-container"></div>
+        
+        <!-- Winners Section -->
+        <div class="winners-section" id="winners-section" style="display: none;">
+            <h2>🏆 الفائزون الأخيرون</h2>
+            <div id="winners-container"></div>
+        </div>
+    </div>
+    
+    <!-- Toast -->
+    <div class="toast" id="toast"></div>
+    
+    <!-- Entry Confirmation Modal -->
+    <div class="modal" id="entry-modal">
+        <div class="modal-content">
+            <button class="modal-close" onclick="PrizesApp.closeModal()">✕</button>
+            <div class="modal-header">
+                <div class="modal-icon">🎉</div>
+                <h2>تم التسجيل بنجاح!</h2>
+            </div>
+            <div class="modal-body">
+                <p>تم تسجيلك في القرعة بنجاح!</p>
+                <div class="lucky-numbers">
+                    <div class="lucky-numbers-title">أرقامك في السحب:</div>
+                    <div id="lucky-numbers-display"></div>
+                </div>
+                <p style="margin-top: 15px; font-size: 0.85rem;">سيتم إشعارك في حال الفوز. حظاً موفقاً! 🍀</p>
+            </div>
+            <button class="btn btn-primary" onclick="PrizesApp.closeModal()">حسناً</button>
+        </div>
+    </div>
+    
+    <script>
+        const PrizesApp = {
+            playerPhone: null,
+            playerScore: 0,
+            tiers: [],
+            myEntries: [],
+            
+            async init() {
+                // جلب معلومات اللاعب من localStorage
+                const player = JSON.parse(localStorage.getItem('tetris_player') || '{}');
+                this.playerPhone = player.phone;
+                this.playerScore = player.bestScore || 0;
+                
+                if (!this.playerPhone) {
+                    this.showToast('⚠️ يجب تسجيل الدخول أولاً!');
+                    setTimeout(() => {
+                        window.location.href = '/';
+                    }, 2000);
+                    return;
+                }
+                
+                await this.loadData();
+            },
+            
+            async loadData() {
+                try {
+                    // جلب الفئات
+                    const tiersRes = await fetch('/api/prizes/tiers');
+                    const tiersData = await tiersRes.json();
+                    this.tiers = tiersData.tiers || [];
+                    
+                    // جلب مشاركاتي
+                    const entriesRes = await fetch(`/api/prizes/my-entries?phone=${this.playerPhone}`);
+                    const entriesData = await entriesRes.json();
+                    this.myEntries = entriesData.entries || [];
+                    
+                    // جلب الفائزين
+                    const winnersRes = await fetch('/api/prizes/winners?limit=10');
+                    const winnersData = await winnersRes.json();
+                    
+                    document.getElementById('loading').style.display = 'none';
+                    
+                    this.renderPrizes();
+                    this.renderWinners(winnersData.winners || []);
+                    
+                } catch (err) {
+                    console.error('Error loading data:', err);
+                    this.showToast('❌ فشل في تحميل البيانات');
+                }
+            },
+            
+            renderPrizes() {
+                const container = document.getElementById('prizes-container');
+                container.innerHTML = '';
+                
+                if (this.tiers.length === 0) {
+                    container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">🎁</div><p>لا توجد جوائز متاحة حالياً</p></div>';
+                    return;
+                }
+                
+                this.tiers.forEach(tier => {
+                    const isEntered = this.myEntries.some(e => e.tier_id === tier.id);
+                    const isEligible = this.playerScore >= tier.min_score && this.playerScore <= tier.max_score;
+                    const needsMore = this.playerScore < tier.min_score;
+                    
+                    const card = document.createElement('div');
+                    card.className = 'prize-card';
+                    card.style.setProperty('--tier-color', tier.color);
+                    
+                    let statusHTML = '';
+                    let buttonHTML = '';
+                    
+                    if (isEntered) {
+                        const entry = this.myEntries.find(e => e.tier_id === tier.id);
+                        statusHTML = `
+                            <div class="prize-status">
+                                <div class="status-info">
+                                    <div class="status-label">نقاطك</div>
+                                    <div class="status-value success">${entry.score} ✅</div>
+                                </div>
+                                <div class="status-info">
+                                    <div class="status-label">عدد التذاكر</div>
+                                    <div class="status-value">${entry.tickets_count}</div>
+                                </div>
+                            </div>
+                        `;
+                        buttonHTML = `<button class="btn btn-entered" disabled>✅ أنت مسجل في القرعة</button>`;
+                    } else if (isEligible) {
+                        statusHTML = `
+                            <div class="prize-status">
+                                <div class="status-info">
+                                    <div class="status-label">نقاطك</div>
+                                    <div class="status-value success">${this.playerScore} ✅</div>
+                                </div>
+                                <div class="status-info">
+                                    <div class="status-label">مؤهل</div>
+                                    <div class="status-value success">نعم</div>
+                                </div>
+                            </div>
+                        `;
+                        buttonHTML = `<button class="btn btn-primary" onclick="PrizesApp.enterDraw(${tier.id}, ${this.playerScore})">🎲 دخول القرعة الآن</button>`;
+                    } else if (needsMore) {
+                        const needed = tier.min_score - this.playerScore;
+                        statusHTML = `
+                            <div class="prize-status">
+                                <div class="status-info">
+                                    <div class="status-label">نقاطك</div>
+                                    <div class="status-value">${this.playerScore}</div>
+                                </div>
+                                <div class="status-info">
+                                    <div class="status-label">تحتاج</div>
+                                    <div class="status-value warning">+${needed}</div>
+                                </div>
+                            </div>
+                        `;
+                        buttonHTML = `<button class="btn btn-locked" disabled>🔒 غير مؤهل بعد</button>`;
+                    } else {
+                        statusHTML = `
+                            <div class="prize-status">
+                                <div class="status-info">
+                                    <div class="status-label">نقاطك</div>
+                                    <div class="status-value">${this.playerScore}</div>
+                                </div>
+                                <div class="status-info">
+                                    <div class="status-label">النطاق</div>
+                                    <div class="status-value">${tier.min_score}-${tier.max_score}</div>
+                                </div>
+                            </div>
+                        `;
+                        buttonHTML = `<button class="btn btn-locked" disabled>🔒 خارج النطاق</button>`;
+                    }
+                    
+                    card.innerHTML = `
+                        <div class="prize-header">
+                            <div class="prize-icon">${tier.icon}</div>
+                            <div class="prize-info">
+                                <h2>${tier.name}</h2>
+                                <div class="prize-range">${tier.min_score.toLocaleString()} - ${tier.max_score.toLocaleString()} نقطة</div>
+                            </div>
+                        </div>
+                        <div class="prize-name">${tier.prize_name}</div>
+                        ${tier.prize_description ? `<div class="prize-description">${tier.prize_description}</div>` : ''}
+                        ${statusHTML}
+                        ${buttonHTML}
+                    `;
+                    
+                    container.appendChild(card);
+                });
+            },
+            
+            async enterDraw(tierId, score) {
+                try {
+                    const player = JSON.parse(localStorage.getItem('tetris_player') || '{}');
+                    
+                    const res = await fetch('/api/prizes/enter', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            phone: this.playerPhone,
+                            player_name: player.name,
+                            tier_id: tierId,
+                            score: score,
+                            device_id: this.getDeviceId()
+                        })
+                    });
+                    
+                    const data = await res.json();
+                    
+                    if (data.success) {
+                        this.showToast('🎉 ' + data.message);
+                        
+                        // عرض الأرقام
+                        const luckyNumbers = JSON.parse(data.entry.lucky_numbers);
+                        this.showEntryModal(luckyNumbers);
+                        
+                        // إعادة تحميل البيانات
+                        await this.loadData();
+                    } else {
+                        this.showToast('❌ ' + data.error);
+                    }
+                    
+                } catch (err) {
+                    console.error('Error entering draw:', err);
+                    this.showToast('❌ فشل في التسجيل');
+                }
+            },
+            
+            showEntryModal(luckyNumbers) {
+                const display = document.getElementById('lucky-numbers-display');
+                display.innerHTML = luckyNumbers.map(num => 
+                    `<span class="lucky-number">${num.toString().padStart(6, '0')}</span>`
+                ).join('');
+                
+                document.getElementById('entry-modal').classList.add('show');
+            },
+            
+            closeModal() {
+                document.getElementById('entry-modal').classList.remove('show');
+            },
+            
+            renderWinners(winners) {
+                const section = document.getElementById('winners-section');
+                const container = document.getElementById('winners-container');
+                
+                if (winners.length === 0) {
+                    section.style.display = 'none';
+                    return;
+                }
+                
+                section.style.display = 'block';
+                container.innerHTML = '';
+                
+                winners.forEach(winner => {
+                    const item = document.createElement('div');
+                    item.className = 'winner-item';
+                    item.innerHTML = `
+                        <div>
+                            <div class="winner-name">${winner.player_name || 'لاعب'}</div>
+                            <div class="winner-prize">${winner.prize_name}</div>
+                            <div class="winner-date">${new Date(winner.win_date).toLocaleDateString('ar')}</div>
+                        </div>
+                        <div style="font-size: 2rem;">${winner.icon}</div>
+                    `;
+                    container.appendChild(item);
+                });
+            },
+            
+            showToast(message) {
+                const toast = document.getElementById('toast');
+                toast.textContent = message;
+                toast.classList.add('show');
+                setTimeout(() => {
+                    toast.classList.remove('show');
+                }, 3000);
+            },
+            
+            getDeviceId() {
+                let deviceId = localStorage.getItem('device_id');
+                if (!deviceId) {
+                    deviceId = 'device_' + Math.random().toString(36).substring(2, 15);
+                    localStorage.setItem('device_id', deviceId);
+                }
+                return deviceId;
+            }
+        };
+        
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            PrizesApp.init();
+        });
+    </script>
+</body>
+</html>

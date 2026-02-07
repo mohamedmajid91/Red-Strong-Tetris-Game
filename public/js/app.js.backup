@@ -102,41 +102,10 @@ const App = {
         const name = document.getElementById('reg-name').value.trim();
         const phone = this.formatPhone(document.getElementById('reg-phone').value);
         const province = document.getElementById('reg-province').value;
-        
-        if (!name || !phone || !province) { 
-            this.toast('يرجى ملء جميع الحقول', true); 
-            return; 
-        }
-        
-        try { 
-            const r = await fetch('/api/register', { 
-                method: 'POST', 
-                headers: { 'Content-Type': 'application/json' }, 
-                body: JSON.stringify({ 
-                    name, 
-                    phone, 
-                    province, 
-                    deviceInfo: { 
-                        userAgent: navigator.userAgent, 
-                        deviceId: this.getDeviceId() 
-                    } 
-                }) 
-            }); 
-            
-            const data = await r.json(); 
-            
-            if (data.success) { 
-                this.player = data.player; 
-                this.savePlayer();
-                this.toast(data.message || 'أهلاً بك! 🎮');
-                setTimeout(() => this.startGame(), 800);
-            } else {
-                this.toast(data.error || 'حدث خطأ في التسجيل', true);
-            }
-        } catch (e) { 
-            console.error('Registration error:', e);
-            this.toast('حدث خطأ في الاتصال', true);
-        }
+        if (!phone) { this.toast('رقم الهاتف غير صحيح!', true); return; }
+        this.player = { name, phone, province }; this.savePlayer();
+        try { const r = await fetch('/api/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, phone, province, deviceInfo: { userAgent: navigator.userAgent, deviceId: this.getDeviceId() } }) }); const data = await r.json(); if (data.success) { this.player = data.player; this.savePlayer(); } } catch (e) { }
+        this.toast('مرحباً ' + name + '!'); this.startGame();
     },
 
     startGame() { if (!this.player) { this.showScreen('register'); return; } this.showScreen('game'); setTimeout(() => Game.start(), 300); },

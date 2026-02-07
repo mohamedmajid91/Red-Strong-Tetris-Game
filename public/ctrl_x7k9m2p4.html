@@ -1447,6 +1447,22 @@
                                 <label>🎵 رابط تيك توك</label>
                                 <input type="url" class="form-control" id="set-tiktok" placeholder="https://tiktok.com/@...">
                             </div>
+                            <div class="form-group">
+                                <label>❌ رابط X (تويتر)</label>
+                                <input type="url" class="form-control" id="set-twitter" placeholder="https://x.com/...">
+                            </div>
+                            <div class="form-group">
+                                <label>💼 رابط LinkedIn</label>
+                                <input type="url" class="form-control" id="set-linkedin" placeholder="https://linkedin.com/company/...">
+                            </div>
+                            <div class="form-group">
+                                <label>📺 رابط YouTube</label>
+                                <input type="url" class="form-control" id="set-youtube" placeholder="https://youtube.com/@...">
+                            </div>
+                            <div class="form-group">
+                                <label>👻 رابط Snapchat</label>
+                                <input type="url" class="form-control" id="set-snapchat" placeholder="https://snapchat.com/add/...">
+                            </div>
                             <button class="btn btn-primary" onclick="saveSocialSettings()">💾 حفظ الإعدادات</button>
                         </div>
                     </div>
@@ -3915,6 +3931,10 @@
                 setVal('set-instagram', 'instagram_url', '');
                 setVal('set-whatsapp', 'whatsapp_number', '');
                 setVal('set-tiktok', 'tiktok_url', '');
+                setVal('set-twitter', 'twitter_url', '');
+                setVal('set-linkedin', 'linkedin_url', '');
+                setVal('set-youtube', 'youtube_url', '');
+                setVal('set-snapchat', 'snapchat_url', '');
                 setCheck('set-show-contact', 'show_contact');
                 setVal('set-contact-phone', 'contact_phone', '');
                 setVal('set-contact-email', 'contact_email', '');
@@ -4024,7 +4044,11 @@
                 facebook_url: document.getElementById('set-facebook').value,
                 instagram_url: document.getElementById('set-instagram').value,
                 whatsapp_number: document.getElementById('set-whatsapp').value,
-                tiktok_url: document.getElementById('set-tiktok').value
+                tiktok_url: document.getElementById('set-tiktok').value,
+                twitter_url: document.getElementById('set-twitter')?.value || '',
+                linkedin_url: document.getElementById('set-linkedin')?.value || '',
+                youtube_url: document.getElementById('set-youtube')?.value || '',
+                snapchat_url: document.getElementById('set-snapchat')?.value || ''
             });
         }
 

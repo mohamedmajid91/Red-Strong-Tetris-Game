@@ -994,7 +994,22 @@ const initDB = async () => {
             // Auto Backup Settings
             ['auto_backup_enabled', 'false'],
             ['auto_backup_interval', '24'],
-            ['auto_backup_keep_days', '7']
+            ['auto_backup_keep_days', '7'],
+            // Social Media Settings
+            ['show_social', 'true'],
+            ['facebook_url', ''],
+            ['instagram_url', ''],
+            ['tiktok_url', ''],
+            ['whatsapp_number', ''],
+            ['twitter_url', ''],
+            ['linkedin_url', ''],
+            ['youtube_url', ''],
+            ['snapchat_url', ''],
+            // Contact Settings
+            ['show_contact', 'true'],
+            ['contact_phone', ''],
+            ['contact_email', ''],
+            ['contact_address', '']
         ];
 
         for (const [key, value] of defaultSettings) {
@@ -4985,6 +5000,12 @@ app.get('/api/health', async (req, res) => {
 const versionRouter = require('./routes/version');
 app.use('/api', versionRouter);
 
+// ============== Prize System API ==============
+const prizesRouter = require('./routes/prizes')(pool);
+const prizesAdminRouter = require('./routes/prizes-admin')(pool, authenticateToken);
+app.use('/api/prizes', prizesRouter);
+app.use('/api/admin/prizes', prizesAdminRouter);
+
 
 
 // ============== Daily Challenges API ==============
@@ -8268,7 +8289,5 @@ app.listen(PORT, () => {
     console.log(`║   🌐 http://localhost:${PORT}                          ║`);
     console.log(`║   🔐 Admin: /${ADMIN_PANEL_PATH}.html              ║`);
     console.log(`║   📊 Health: /api/health                           ║`);
-    console.log(`║   📦 Version: /api/version                         ║`);
     console.log(`╚════════════════════════════════════════════════════╝`);
 });
-
